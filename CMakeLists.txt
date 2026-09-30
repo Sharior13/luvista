@@ -20,7 +20,7 @@ if(UNIX AND NOT APPLE)
 endif()
 
 # Slint: compiles the .slint file and generates app.h
-slint_target_sources(music_player ui/main.slint)
+slint_target_sources(music_player ui/app.slint)
 target_link_libraries(music_player PRIVATE Slint::Slint)
 
 # Windows: copy slint_cpp.dll next to the exe
