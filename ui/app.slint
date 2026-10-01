@@ -1,6 +1,19 @@
+import { Session } from "session.slint";
+import { LoginView } from "views/login-view.slint";
+import { AppShell } from "views/app-shell.slint";
+
 export component AppWindow inherits Window {
-    title: "Music Player";
-    preferred-width: 600px;
-    preferred-height: 400px;
-    Text { text: "Hello from Slint"; }
+    title: "Luvista Music Player";
+
+    //size to open app at
+    preferred-width: 1000px;
+    preferred-height: 650px;
+
+    //minimum allowed app size
+    min-width: 800px;
+    min-height: 600px;
+
+    //login gate
+    if !Session.logged-in : LoginView {}
+    if Session.logged-in : AppShell {}
 }

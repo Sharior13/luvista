@@ -8,10 +8,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/external/slint")
 find_package(Slint REQUIRED)
 
-add_executable(music_player
-    src/main.cpp
-    src/audio/miniaudioImplementation.cpp
+file(GLOB_RECURSE MY_SOURCES CONFIGURE_DEPENDS 
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
 )
+
+add_executable(music_player ${MY_SOURCES})
 
 # miniaudio (header only)
 target_include_directories(music_player PRIVATE external/miniaudio)
