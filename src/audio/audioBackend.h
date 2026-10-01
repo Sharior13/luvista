@@ -1,14 +1,31 @@
 #pragma once
 #include <string>
+#include "miniaudio.h"
 
-struct AudioBackend {
-    virtual ~AudioBackend() = default;
-    virtual bool load(const std::string& path) = 0;
-    virtual void play() = 0;
-    virtual void pause() = 0;
-    virtual void seek(double seconds) = 0;
-    virtual void set_volume(float v) = 0;   // 0..1
-    virtual double position() const = 0;    // seconds
-    virtual double duration() const = 0;    // seconds
-    virtual bool is_playing() const = 0;
+using namespace std;
+
+class AudioBackend {
+private:
+    ma_engine engine;     // the audio system
+    ma_sound sound;       // the loaded song
+    bool engineReady;     // true if the engine started OK
+    bool songLoaded;      // true if a song is loaded
+    float volume;         // 0.0 to 1.0
+    string songName;      // name of the song (from the file name)
+
+public:
+    AudioBackend();
+    ~AudioBackend();
+
+    bool load(const string& path);
+    void play();
+    void pause();
+    void restart();
+    void seek(double seconds);
+    void set_volume(float v);
+
+    string SongName() const;      // name of the current song
+    double position() const;
+    double duration() const;
+    bool is_playing() const;
 };
