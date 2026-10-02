@@ -1,7 +1,24 @@
 import { LineEdit, Button } from "std-widgets.slint";
 import { Session } from "../session.slint";
+import { Theme } from "../theme.slint";
 
 //screen to show if not logged in
 export component LoginView inherits Rectangle {
-    background: #5c3f97;
+    background: Theme.background;
+    
+    Rectangle {
+        background: Theme.primary;
+        width: parent.width - 200px;
+        height: parent.height - 200px;
+        x: parent.width /2 - self.width / 2 ;
+        y: parent.height /2 - self.height / 2;
+
+        VerticalLayout {
+            Text {
+                text: "Hello";
+                color: Theme.text-primary;
+                font-size: 40pt;
+            }
+        }
+    }
 }

@@ -1,0 +1,83 @@
+import { Theme } from "../theme.slint";
+
+//thin custom slider used for both the seek bar and the volume bar
+export component BarSlider inherits Rectangle {
+    in property <float> value;
+    in property <float> minimum: 0;
+    in property <float> maximum: 1;
+    in property <brush> fill: @linear-gradient(90deg, #f7b9d4 0%, #f08fb6 100%);
+    in property <color> track: Theme.seek-track;
+    in property <color> knob: Theme.pink;
+    in property <length> knob-size: 14px;
+    in property <length> track-height: 4px;
+
+    //changed fires while dragging, released fires once when the mouse is let go
+    callback changed(float);
+    callback released(float);
+
+    property <length> usable: Math.max(1px, root.width - root.knob-size);
+    property <float> ratio: root.maximum > root.minimum
+        ? Math.min(1, Math.max(0, (root.value - root.minimum) / (root.maximum - root.minimum)))
+        : 0;
+    property <float> drag-ratio;
+    property <float> shown: touch.pressed ? root.drag-ratio : root.ratio;
+
+    function ratio-at(mx: length) -> float {
+        return Math.min(1, Math.max(0, (mx - root.knob-size / 2) / root.usable));
+    }
+    function value-at(r: float) -> float {
+        return root.minimum + r * (root.maximum - root.minimum);
+    }
+
+    //unfilled track
+    Rectangle {
+        x: root.knob-size / 2;
+        y: (parent.height - self.height) / 2;
+        width: parent.width - root.knob-size;
+        height: root.track-height;
+        border-radius: self.height / 2;
+        background: root.track;
+    }
+
+    //filled part
+    Rectangle {
+        x: root.knob-size / 2;
+        y: (parent.height - self.height) / 2;
+        width: root.usable * root.shown;
+        height: root.track-height;
+        border-radius: self.height / 2;
+        background: root.fill;
+    }
+
+    //knob
+    Rectangle {
+        x: root.usable * root.shown;
+        y: (parent.height - self.height) / 2;
+        width: root.knob-size;
+        height: root.knob-size;
+        border-radius: self.width / 2;
+        background: root.knob;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+
+        pointer-event(e) => {
+            if (e.button == PointerEventButton.left) {
+                if (e.kind == PointerEventKind.down) {
+                    root.drag-ratio = root.ratio-at(self.mouse-x);
+                    root.changed(root.value-at(root.drag-ratio));
+                } else if (e.kind == PointerEventKind.up) {
+                    root.released(root.value-at(root.drag-ratio));
+                }
+            }
+        }
+
+        moved => {
+            if (self.pressed) {
+                root.drag-ratio = root.ratio-at(self.mouse-x);
+                root.changed(root.value-at(root.drag-ratio));
+            }
+        }
+    }
+}

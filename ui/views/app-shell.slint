@@ -1,4 +1,8 @@
 //main screen after login is successful
-export component AppShell {
-    
+import { Theme } from "../theme.slint";
+import { PlayerBar } from "../components/player-bar.slint";
+
+export component AppShell inherits Rectangle {
+    background: Theme.background;
+    PlayerBar {}
 }
