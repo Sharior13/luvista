@@ -32,7 +32,7 @@ component IconButton inherits Rectangle {
     }
 }
 
-    export component PlayerBar inherits Rectangle {
+export component PlayerBar inherits Rectangle {
     //fill available parent space
     width: 100%;
     height: 100%;
@@ -58,6 +58,14 @@ component IconButton inherits Rectangle {
     callback seek(float);              //seconds
     callback volume-changed(float);    //0..1
     callback add-clicked();
+
+    //panels next to the volume bar, tinted pink while open
+    in-out property <bool> lyrics-open: false;
+    in-out property <bool> queue-open: false;
+    in-out property <bool> fullscreen: false;   //bind to the window with <=>
+    callback lyrics-clicked();
+    callback queue-clicked();
+    callback fullscreen-clicked();
 
     pure function format-time(t: float) -> string {
         return Math.floor(t / 60) + ":"
@@ -88,7 +96,8 @@ component IconButton inherits Rectangle {
 
                 //album art, song title, and artist
                 Rectangle {
-                    width: 26%;
+                    width: 30%;
+                    min-width: 270px;
 
                     HorizontalLayout {
                         spacing: 14px;
@@ -101,7 +110,7 @@ component IconButton inherits Rectangle {
                                 height: 80px;
                                 border-radius: self.width / 2;
                                 clip: true;
-                                background: @linear-gradient(135deg, #ff9cc2 0%, #ff4fa3 100%);
+                                background: @linear-gradient(135deg, Theme.cover-start 0%, Theme.cover-end 100%);
 
                                 Image {
                                     source: root.cover-art;
@@ -173,13 +182,15 @@ component IconButton inherits Rectangle {
                         HorizontalLayout {
                             height: 52px;
                             alignment: center;
-                            spacing: 26px;
+                            spacing: 20px;
 
+                            //shuffle
                             IconButton {
                                 icon: @image-url("../icons/shuffle.svg");
                                 tint: root.shuffle ? Theme.pink : Theme.icon-dim;
                                 clicked => { root.shuffle = !root.shuffle; }
                             }
+                            //previous
                             IconButton {
                                 icon: @image-url("../icons/prev.svg");
                                 tint: Theme.text-primary;
@@ -191,8 +202,8 @@ component IconButton inherits Rectangle {
                                 width: 52px;
                                 height: 52px;
                                 border-radius: self.width / 2;
-                                background: play-touch.has-hover ? #ffffff : #f4f0fa;
-                                drop-shadow-color: #00000066;
+                                background: play-touch.has-hover ? Theme.play-button-hover : Theme.play-button;
+                                drop-shadow-color: Theme.shadow;
                                 drop-shadow-blur: 8px;
                                 drop-shadow-offset-y: 2px;
 
@@ -214,11 +225,13 @@ component IconButton inherits Rectangle {
                                 }
                             }
 
+                            //next
                             IconButton {
                                 icon: @image-url("../icons/next.svg");
                                 tint: Theme.text-primary;
                                 clicked => { root.next(); }
                             }
+                            //repeat
                             IconButton {
                                 icon: @image-url("../icons/repeat.svg");
                                 tint: root.repeat ? Theme.pink : Theme.icon-dim;
@@ -226,6 +239,7 @@ component IconButton inherits Rectangle {
                             }
                         }
 
+                        //seekbar
                         HorizontalLayout {
                             height: 20px;
                             spacing: 10px;
@@ -257,35 +271,80 @@ component IconButton inherits Rectangle {
                     }
                 }
 
-                //volume
+                //lyrics/queue/fullscreen buttons sit above the volume bar
                 Rectangle {
                     width: 22%;
+                    min-width: 150px;
 
-                    HorizontalLayout {
-                        alignment: end;
-                        spacing: 10px;
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 6px;
 
-                        IconButton {
-                            icon: @image-url("../icons/volume.svg");
-                            glyph: 20px;
-                            tint: Theme.text-muted;
+                        //both rows are centered so the buttons line up over the volume bar
+                        HorizontalLayout {
+                            height: 34px;
+                            alignment: center;
+                            spacing: 6px;
+
+                            IconButton {
+                                icon: @image-url("../icons/lyrics.svg");
+                                glyph: 20px;
+                                tint: root.lyrics-open ? Theme.pink : Theme.icon-dim;
+                                clicked => {
+                                    root.lyrics-open = !root.lyrics-open;
+                                    root.lyrics-clicked();
+                                }
+                            }
+                            IconButton {
+                                icon: @image-url("../icons/queue.svg");
+                                glyph: 20px;
+                                tint: root.queue-open ? Theme.pink : Theme.icon-dim;
+                                clicked => {
+                                    root.queue-open = !root.queue-open;
+                                    root.queue-clicked();
+                                }
+                            }
+                            IconButton {
+                                icon: root.fullscreen
+                                    ? @image-url("../icons/fullscreen-exit.svg")
+                                    : @image-url("../icons/fullscreen.svg");
+                                glyph: 20px;
+                                tint: root.fullscreen ? Theme.pink : Theme.icon-dim;
+                                clicked => {
+                                    root.fullscreen = !root.fullscreen;
+                                    root.fullscreen-clicked();
+                                }
+                            }
                         }
-                        Rectangle {
-                            horizontal-stretch: 1;
-                            min-width: 100px;
-                            max-width: 130px;
 
-                            BarSlider {
-                                width: 100%;
-                                height: 20px;
-                                y: (parent.height - self.height) / 2;
-                                maximum: 1;
-                                value: root.volume;
-                                fill: @linear-gradient(90deg, #f7a4b4 0%, #ff7b72 100%);
-                                knob: Theme.coral;
-                                changed(v) => {
-                                    root.volume = v;
-                                    root.volume-changed(v);
+                        //volume
+                        HorizontalLayout {
+                            height: 34px;
+                            alignment: center;
+                            spacing: 1px;
+
+                            IconButton {
+                                icon: @image-url("../icons/volume.svg");
+                                glyph: 20px;
+                                tint: Theme.icon-dim;
+                            }
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                min-width: 80px;
+                                max-width: 130px;
+
+                                BarSlider {
+                                    width: 100%;
+                                    height: 20px;
+                                    y: (parent.height - self.height) / 2;
+                                    maximum: 1;
+                                    value: root.volume;
+                                    fill: @linear-gradient(90deg, Theme.coral-light 0%, Theme.coral 100%);
+                                    knob: Theme.coral;
+                                    changed(v) => {
+                                        root.volume = v;
+                                        root.volume-changed(v);
+                                    }
                                 }
                             }
                         }
