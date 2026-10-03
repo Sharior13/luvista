@@ -1,0 +1,33 @@
+import { TrackInfo } from "components/track-card.slint";
+
+//placeholder content for the home page. Set enabled to true to preview the filled-in state.
+export global MockData {
+    out property <bool> enabled: true;
+
+    out property <[TrackInfo]> recent: [
+        { title: "Slow Tide Home", subtitle: "Marlo Vey" },
+        { title: "Paper Lanterns", subtitle: "Hollis & Reed" },
+        { title: "Northbound", subtitle: "The Quiet Fields" },
+        { title: "Glass Hours", subtitle: "Ines Alder" },
+        { title: "Soft Static", subtitle: "Marlo Vey" },
+        { title: "Low Orbit", subtitle: "Juno Park" },
+    ];
+
+    out property <[TrackInfo]> most-played: [
+        { title: "Slow Tide Home", subtitle: "Marlo Vey" },
+        { title: "Glass Hours", subtitle: "Ines Alder" },
+        { title: "Northbound", subtitle: "The Quiet Fields" },
+        { title: "Evergreen", subtitle: "Hollis & Reed" },
+        { title: "Low Orbit", subtitle: "Juno Park" },
+        { title: "Paper Lanterns", subtitle: "Hollis & Reed" },
+    ];
+
+    out property <[TrackInfo]> recently-added: [
+        { title: "Harbor Lights", subtitle: "Ines Alder" },
+        { title: "Quiet Rooms", subtitle: "Juno Park" },
+        { title: "Amber Season", subtitle: "The Quiet Fields" },
+        { title: "Static Bloom", subtitle: "Marlo Vey" },
+        { title: "Wide Open", subtitle: "Hollis & Reed" },
+        { title: "Late Trains", subtitle: "Juno Park" },
+    ];
+}

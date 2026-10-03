@@ -1,0 +1,60 @@
+import { Theme } from "../theme.slint";
+
+//one row of the side navigation: icon, label and an optional count on the right
+//when compact is true only the icon is visible
+export component NavItem inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <string> count;
+    in property <bool> active;
+    in property <bool> compact;
+    callback clicked();
+
+    height: 40px;
+    clip: true;
+    //pill when wide, rounded square when collapsed
+    border-radius: root.compact ? 8px : self.height / 2;
+    background: root.active ? Theme.background : (touch.has-hover ? Theme.nav-hover : transparent);
+    animate border-radius { duration: Theme.anim-fast; easing: ease-in-out; }
+
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.clicked(); }
+    }
+
+    //icon stays in the same spot in both states, so it never jumps
+    Image {
+        source: root.icon;
+        colorize: Theme.text-primary;
+        width: Theme.nav-icon-size;
+        height: Theme.nav-icon-size;
+        x: (40px - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+    }
+
+    Text {
+        x: 38px;
+        width: max(0px, parent.width - 38px - 56px);
+        height: parent.height;
+        text: root.label;
+        color: Theme.text-primary;
+        font-size: 18px;
+        vertical-alignment: center;
+        overflow: elide;
+        opacity: root.compact ? 0.0 : 1.0;
+        animate opacity { duration: Theme.anim-fast; }
+    }
+
+    Text {
+        width: 36px;
+        x: parent.width - self.width - 18px;
+        height: parent.height;
+        text: root.count;
+        color: Theme.text-primary;
+        font-size: 18px;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+        opacity: root.compact ? 0.0 : 1.0;
+        animate opacity { duration: Theme.anim-fast; }
+    }
+}

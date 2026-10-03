@@ -1,0 +1,42 @@
+//main screen after login is successful
+import { Theme } from "../theme.slint";
+import { MockData } from "../mock-data.slint";
+import { PlayerBar } from "../components/player-bar.slint";
+import { SideNav, NavSection } from "../components/side-nav.slint";
+import { HomeView } from "home-view.slint";
+
+export component AppShell inherits Rectangle {
+    background: Theme.primary;
+
+    //sidebar and content sit above the player bar
+    Rectangle {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height - Theme.player-bar-height;
+
+        side-nav := SideNav {
+            x: 0px;
+            y: 0px;
+            height: parent.height;
+        }
+
+        //pages go inside this panel
+        Rectangle {
+            x: side-nav.width;
+            y: 0px;
+            width: parent.width - side-nav.width;
+            height: parent.height + 6px;
+            background: Theme.background;
+
+            if side-nav.section == NavSection.home && side-nav.selected-playlist < 0 : HomeView {
+                //real data goes here later, empty lists show the empty states
+                recent: MockData.enabled ? MockData.recent : [];
+                most-played: MockData.enabled ? MockData.most-played : [];
+                recently-added: MockData.enabled ? MockData.recently-added : [];
+            }
+        }
+    }
+
+    PlayerBar {}
+}
