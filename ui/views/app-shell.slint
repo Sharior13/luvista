@@ -1,8 +1,33 @@
 //main screen after login is successful
 import { Theme } from "../theme.slint";
 import { PlayerBar } from "../components/player-bar.slint";
+import { SideNav } from "../components/side-nav.slint";
 
 export component AppShell inherits Rectangle {
-    background: Theme.background;
+    background: Theme.primary;
+
+    //sidebar and content sit above the player bar
+    Rectangle {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height - Theme.player-bar-height;
+
+        side-nav := SideNav {
+            x: 0px;
+            y: 0px;
+            height: parent.height;
+        }
+
+        //pages go inside this panel
+        Rectangle {
+            x: side-nav.width;
+            y: 0px;
+            width: parent.width - side-nav.width;
+            height: parent.height + 6px;
+            background: Theme.background;
+        }
+    }
+
     PlayerBar {}
 }

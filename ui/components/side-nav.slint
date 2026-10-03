@@ -1,0 +1,204 @@
+import { Theme } from "../theme.slint";
+import { NavItem } from "nav-item.slint";
+import { PlaylistItem, PlaylistInfo } from "playlist-item.slint";
+
+export enum NavSection { home, songs, favorites, recordings }
+
+//collapsible side navigation. Click the logo to collapse/expand it.
+export component SideNav inherits Rectangle {
+    in-out property <bool> collapsed: false;
+    in-out property <NavSection> section: NavSection.home;
+    in-out property <int> selected-playlist: -1;   //-1 = no playlist selected
+    in property <int> songs-count: 0;
+    in property <int> favorites-count: 0;
+    in property <int> recordings-count: 0;
+    //mock playlist for now, replace with real data later
+    in property <[PlaylistInfo]> playlists: [{ title: "Late Night Drive" }];
+    callback playlist-clicked(int);
+    callback section-changed(NavSection);
+    callback add-playlist();
+
+    width: root.collapsed ? Theme.sidebar-compact : Theme.sidebar-width;
+    animate width { duration: Theme.anim-fast; easing: ease-in-out; }
+    clip: true;
+
+    VerticalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 35px;
+        padding-bottom: 14px;
+        spacing: 12px;
+
+        //logo + app name, clicking it toggles the sidebar
+        Rectangle {
+            height: 40px;
+
+            TouchArea {
+                mouse-cursor: MouseCursor.pointer;
+                clicked => { root.collapsed = !root.collapsed; }
+            }
+
+            //logo
+            Rectangle {
+                x: 8px;
+                y: (parent.height - self.height) / 2;
+                width: 24px;
+                height: 24px;
+                border-radius: self.width / 2;
+                background: @linear-gradient(135deg, Theme.cover-start 0%, Theme.cover-end 100%);
+            }
+
+            //app name
+            Text {
+                x: 44px;
+                width: max(0px, parent.width - 44px);
+                height: parent.height;
+                text: "Luvista";
+                color: Theme.text-primary;
+                font-size: 28px;
+                font-weight: 800;
+                vertical-alignment: center;
+                overflow: elide;
+                opacity: root.collapsed ? 0.0 : 1.0;
+                animate opacity { duration: Theme.anim-fast; }
+            }
+        }
+
+        Rectangle { height: 4px; }
+
+        //home
+        NavItem {
+            icon: @image-url("../icons/home.svg");
+            label: "Home";
+            compact: root.collapsed;
+            active: root.selected-playlist < 0 && root.section == NavSection.home;
+            clicked => {
+                root.selected-playlist = -1;
+                root.section = NavSection.home;
+                root.section-changed(NavSection.home);
+            }
+        }
+
+        //all songs
+        NavItem {
+            icon: @image-url("../icons/music.svg");
+            label: "Songs";
+            count: "\{root.songs-count}";
+            compact: root.collapsed;
+            active: root.selected-playlist < 0 && root.section == NavSection.songs;
+            clicked => {
+                root.selected-playlist = -1;
+                root.section = NavSection.songs;
+                root.section-changed(NavSection.songs);
+            }
+        }
+
+        //favorites
+        NavItem {
+            icon: @image-url("../icons/heart.svg");
+            label: "Favorites";
+            count: "\{root.favorites-count}";
+            compact: root.collapsed;
+            active: root.selected-playlist < 0 && root.section == NavSection.favorites;
+            clicked => {
+                root.selected-playlist = -1;
+                root.section = NavSection.favorites;
+                root.section-changed(NavSection.favorites);
+            }
+        }
+
+        //recordings
+        NavItem {
+            icon: @image-url("../icons/recordings.svg");
+            label: "Recordings";
+            count: "\{root.recordings-count}";
+            compact: root.collapsed;
+            active: root.selected-playlist < 0 && root.section == NavSection.recordings;
+            clicked => {
+                root.selected-playlist = -1;
+                root.section = NavSection.recordings;
+                root.section-changed(NavSection.recordings);
+            }
+        }
+
+        //divider between the library lists and the playlists
+        Rectangle {
+            height: 1px;
+            background: Theme.divider;
+        }
+
+        //playlist header: label on the left and a + button
+        //the + slides to the icon column when collapsed
+        Rectangle {
+            height: 40px;
+            clip: true;
+
+            //icon fades out when collapsed, the + takes its place
+            Image {
+                source: @image-url("../icons/playlist.svg");
+                colorize: Theme.text-primary;
+                width: Theme.nav-icon-size;
+                height: Theme.nav-icon-size;
+                x: (40px - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                opacity: root.collapsed ? 0.0 : 1.0;
+                animate opacity { duration: Theme.anim-fast; }
+            }
+
+            Text {
+                x: 38px;
+                width: max(0px, parent.width - 38px - 56px);
+                height: parent.height;
+                text: "Playlists";
+                color: Theme.text-primary;
+                font-size: 18px;
+                vertical-alignment: center;
+                opacity: root.collapsed ? 0.0 : 1.0;
+                animate opacity { duration: Theme.anim-fast; }
+            }
+
+            plus-btn := Rectangle {
+                width: 32px;
+                height: 32px;
+                y: (parent.height - self.height) / 2;
+                x: root.collapsed ? 4px : parent.width - 34px;
+                animate x { duration: Theme.anim-fast; easing: ease-in-out; }
+                        
+                //circle outline when collapsed, soft square hover when expanded
+                border-radius: root.collapsed ? self.width / 2 : 8px;
+                border-width: root.collapsed ? 1px : 0px;
+                border-color: Theme.text-muted;
+                animate border-radius, border-width { duration: Theme.anim-fast; }
+                background: plus-touch.has-hover ? Theme.nav-hover : transparent;
+
+                plus-touch := TouchArea {
+                    mouse-cursor: MouseCursor.pointer;
+                    clicked => { root.add-playlist(); }
+                }
+                Image {
+                    source: @image-url("../icons/plus.svg");
+                    colorize: Theme.text-primary;
+                    width: Theme.nav-icon-size;
+                    height: Theme.nav-icon-size;
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                }
+            }
+        }
+
+        //the user's playlists
+        for playlist[i] in root.playlists : PlaylistItem {
+            title: playlist.title;
+            art: playlist.art;
+            compact: root.collapsed;
+            active: root.selected-playlist == i;
+            clicked => {
+                root.selected-playlist = i;
+                root.playlist-clicked(i);
+            }
+        }
+
+        //pushes everything up
+        Rectangle { vertical-stretch: 1; }
+    }
+}
