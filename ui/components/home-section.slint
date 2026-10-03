@@ -1,0 +1,79 @@
+import { Theme } from "../theme.slint";
+import { TrackCard, TrackInfo } from "track-card.slint";
+
+//one titled block on the home page. Shows an empty message until it has items,
+//then a single row of as many cards as fit the width.
+export component HomeSection inherits VerticalLayout {
+    in property <string> title;
+    in property <string> empty-text;
+    in property <[TrackInfo]> items;
+    in property <int> variant-offset: 0;
+    callback show-all();
+    callback track-clicked(TrackInfo);
+
+    property <length> gap: 10px;
+
+    spacing: 12px;
+
+    HorizontalLayout {
+        height: 32px;
+
+        Text {
+            text: root.title;
+            color: Theme.text-primary;
+            font-size: 22px;
+            font-weight: 700;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+
+        Rectangle {
+            width: 80px;
+
+            Text {
+                text: "Show all";
+                color: Theme.text-primary;
+                font-size: 14px;
+                font-weight: 700;
+                horizontal-alignment: right;
+                vertical-alignment: center;
+                width: 100%;
+                height: 100%;
+                opacity: show-touch.has-hover ? 1.0 : 0.85;
+            }
+            show-touch := TouchArea {
+                mouse-cursor: MouseCursor.pointer;
+                clicked => { root.show-all(); }
+            }
+        }
+    }
+
+    if root.items.length == 0 : Rectangle {
+        height: 40px;
+        Text {
+            x: 8px;
+            width: parent.width - 8px;
+            height: parent.height;
+            text: root.empty-text;
+            color: Theme.text-primary;
+            font-size: 14px;
+            font-weight: 700;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    if root.items.length > 0 : Rectangle {
+        height: Theme.card-height;
+        clip: true;
+
+        for item[i] in root.items : TrackCard {
+            x: i * (Theme.card-width + root.gap);
+            y: 0px;
+            visible: self.x + Theme.card-width <= parent.width + 1px;
+            track: item;
+            variant: Math.mod(i + root.variant-offset, 3);
+            clicked => { root.track-clicked(item); }
+        }
+    }
+}

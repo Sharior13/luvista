@@ -1,0 +1,69 @@
+import { Theme } from "../theme.slint";
+
+export struct TrackInfo {
+    title: string,
+    subtitle: string,
+    art: image,
+}
+
+//square art with a title and subtitle underneath
+export component TrackCard inherits Rectangle {
+    in property <TrackInfo> track;
+    in property <int> variant: 0;      //picks the placeholder gradient while there is no art
+    callback clicked();
+
+    width: Theme.card-width;
+    height: Theme.card-height;
+    border-radius: 12px;
+    background: touch.has-hover ? Theme.nav-hover : transparent;
+
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.clicked(); }
+    }
+
+    art := Rectangle {
+        x: 10px;
+        y: 10px;
+        width: parent.width - 20px;
+        height: self.width;
+        border-radius: 8px;
+        clip: true;
+        background: root.variant == 0
+            ? @linear-gradient(135deg, Theme.cover-start 0%, Theme.cover-end 100%)
+            : root.variant == 1
+                ? @linear-gradient(135deg, Theme.playlist-art-start 0%, Theme.playlist-art-end 100%)
+                : @linear-gradient(135deg, Theme.art-warm-start 0%, Theme.art-warm-end 100%);
+
+        Image {
+            source: root.track.art;
+            width: 100%;
+            height: 100%;
+            image-fit: cover;
+        }
+    }
+
+    Text {
+        x: 10px;
+        y: art.y + art.height + 10px;
+        width: parent.width - 20px;
+        height: 22px;
+        text: root.track.title;
+        color: Theme.text-primary;
+        font-size: 15px;
+        font-weight: 700;
+        overflow: elide;
+    }
+
+    Text {
+        x: 10px;
+        y: art.y + art.height + 32px;
+        width: parent.width - 20px;
+        height: 20px;
+        text: root.track.subtitle;
+        color: Theme.text-muted;
+        font-size: 13px;
+        font-weight: 700;
+        overflow: elide;
+    }
+}
