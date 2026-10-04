@@ -25,7 +25,7 @@ export component PlaylistItem inherits Rectangle {
         clicked => { root.clicked(); }
     }
 
-    //art lines up with the icon column above it
+    //playlist art, it lines up with the icon column above it
     Rectangle {
         x: 2px;
         y: (parent.height - self.height) / 2;
@@ -47,6 +47,7 @@ export component PlaylistItem inherits Rectangle {
         }
     }
 
+    //playlist name
     Text {
         x: 48px;
         width: max(0px, parent.width - 48px - 12px);

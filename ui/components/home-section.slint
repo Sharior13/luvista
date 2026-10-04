@@ -15,9 +15,11 @@ export component HomeSection inherits VerticalLayout {
 
     spacing: 12px;
 
+    //section container
     HorizontalLayout {
         height: 32px;
 
+        //section title
         Text {
             text: root.title;
             color: Theme.text-primary;
@@ -27,6 +29,7 @@ export component HomeSection inherits VerticalLayout {
             horizontal-stretch: 1;
         }
 
+        //show all button
         Rectangle {
             width: 80px;
 
@@ -48,6 +51,7 @@ export component HomeSection inherits VerticalLayout {
         }
     }
 
+    //show when there are no cards (empty state)
     if root.items.length == 0 : Rectangle {
         height: 40px;
         Text {
@@ -63,6 +67,7 @@ export component HomeSection inherits VerticalLayout {
         }
     }
 
+    //track cards
     if root.items.length > 0 : Rectangle {
         height: Theme.card-height;
         clip: true;

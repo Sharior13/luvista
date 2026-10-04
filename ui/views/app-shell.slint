@@ -42,6 +42,8 @@ export component AppShell inherits Rectangle {
             height: parent.height + 6px;
             background: Theme.background;
 
+            //control which page to show
+            //home view
             if AppState.section == NavSection.home && AppState.selected-playlist < 0 : HomeView {
                 recent: AppState.recent;
                 most-played: AppState.most-played;
@@ -53,6 +55,7 @@ export component AppShell inherits Rectangle {
         }
     }
 
+    //bottom player bar
     PlayerBar {
         title: AppState.title;
         artist: AppState.artist;

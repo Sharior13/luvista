@@ -22,7 +22,7 @@ export component NavItem inherits Rectangle {
         clicked => { root.clicked(); }
     }
 
-    //icon stays in the same spot in both states, so it never jumps
+    //icon, it stays in the same spot in both states, so it never jumps
     Image {
         source: root.icon;
         colorize: Theme.text-primary;
@@ -32,6 +32,7 @@ export component NavItem inherits Rectangle {
         y: (parent.height - self.height) / 2;
     }
 
+    //nav item label
     Text {
         x: 38px;
         width: max(0px, parent.width - 38px - 56px);
@@ -45,6 +46,7 @@ export component NavItem inherits Rectangle {
         animate opacity { duration: Theme.anim-fast; }
     }
 
+    //nav item song count
     Text {
         width: 36px;
         x: parent.width - self.width - 18px;

@@ -24,6 +24,7 @@ export component PageScroll inherits Rectangle {
         @children
     }
 
+    //main scrollbar logic
     if root.scrollable && root.show-scrollbar : Rectangle {
         x: parent.width - 16px + root.bar-offset;
         animate x { duration: Theme.anim-fast; easing: ease-in-out; }

@@ -22,6 +22,7 @@ export component TrackCard inherits Rectangle {
         clicked => { root.clicked(); }
     }
 
+    //clickable song art container
     art := Rectangle {
         x: 10px;
         y: 10px;
@@ -43,6 +44,7 @@ export component TrackCard inherits Rectangle {
         }
     }
 
+    //song title
     Text {
         x: 10px;
         y: art.y + art.height + 10px;
@@ -55,6 +57,7 @@ export component TrackCard inherits Rectangle {
         overflow: elide;
     }
 
+    //song artist
     Text {
         x: 10px;
         y: art.y + art.height + 32px;

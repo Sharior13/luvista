@@ -59,6 +59,7 @@ export component BarSlider inherits Rectangle {
         background: root.knob;
     }
 
+    //when user touches the bar
     touch := TouchArea {
         mouse-cursor: MouseCursor.pointer;
 
@@ -73,6 +74,7 @@ export component BarSlider inherits Rectangle {
             }
         }
 
+        //when user moves the bar
         moved => {
             if (self.pressed) {
                 root.drag-ratio = root.ratio-at(self.mouse-x);

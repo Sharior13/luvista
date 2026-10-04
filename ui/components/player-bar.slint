@@ -10,6 +10,7 @@ component IconButton inherits Rectangle {
 
     width: root.glyph + 14px;
 
+    //icon
     Rectangle {
         width: root.glyph + 14px;
         height: root.glyph + 14px;
@@ -52,6 +53,7 @@ export component PlayerBar inherits Rectangle {
     in-out property <bool> repeat: false;
     in-out property <float> volume: 1.0;   //0..1
 
+    //callbacks used in cpp backend
     callback toggle-play();
     callback previous();
     callback next();
@@ -69,6 +71,7 @@ export component PlayerBar inherits Rectangle {
     callback queue-clicked();
     callback fullscreen-clicked();
 
+    //helper function to show song length in minutes
     pure function format-time(t: float) -> string {
         return Math.floor(t / 60) + ":"
             + (Math.mod(Math.floor(t), 60) < 10 ? "0" : "")
@@ -107,6 +110,8 @@ export component PlayerBar inherits Rectangle {
 
                         VerticalLayout {
                             alignment: center;
+
+                            //album art
                             Rectangle {
                                 width: 80px;
                                 height: 80px;
@@ -129,6 +134,8 @@ export component PlayerBar inherits Rectangle {
                             VerticalLayout {
                                 alignment: center;
                                 spacing: 4px;
+
+                                //song title
                                 Text {
                                     text: root.title;
                                     color: Theme.text-primary;
@@ -136,6 +143,8 @@ export component PlayerBar inherits Rectangle {
                                     font-weight: 700;
                                     overflow: elide;
                                 }
+
+                                //song artist
                                 Text {
                                     text: root.artist;
                                     color: Theme.text-muted;
@@ -148,6 +157,8 @@ export component PlayerBar inherits Rectangle {
 
                         VerticalLayout {
                             alignment: center;
+
+                            //add to playlist button
                             Rectangle {
                                 width: 30px;
                                 height: 30px;
@@ -294,6 +305,8 @@ export component PlayerBar inherits Rectangle {
                             alignment: center;
                             spacing: 6px;
 
+
+                            //lyrics
                             IconButton {
                                 icon: @image-url("../icons/lyrics.svg");
                                 glyph: 20px;
@@ -303,6 +316,8 @@ export component PlayerBar inherits Rectangle {
                                     root.lyrics-clicked();
                                 }
                             }
+
+                            //queue
                             IconButton {
                                 icon: @image-url("../icons/queue.svg");
                                 glyph: 20px;
@@ -312,6 +327,8 @@ export component PlayerBar inherits Rectangle {
                                     root.queue-clicked();
                                 }
                             }
+
+                            //fullscreen
                             IconButton {
                                 icon: root.fullscreen
                                     ? @image-url("../icons/fullscreen-exit.svg")
@@ -336,6 +353,8 @@ export component PlayerBar inherits Rectangle {
                                 glyph: 20px;
                                 tint: Theme.icon-dim;
                             }
+
+                            //volume slider
                             Rectangle {
                                 horizontal-stretch: 1;
                                 min-width: 80px;

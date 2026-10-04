@@ -35,6 +35,7 @@ export component HomeView inherits Rectangle {
                     }
                 }
 
+                //header title
                 Text {
                     text: "Your music, our files";
                     color: Theme.text-primary;
@@ -43,6 +44,7 @@ export component HomeView inherits Rectangle {
                     horizontal-alignment: center;
                 }
 
+                //header subtitle
                 Rectangle {
                     height: 48px;
                     Text {
@@ -58,6 +60,7 @@ export component HomeView inherits Rectangle {
                 }
             }
 
+            //recent activity
             HomeSection {
                 title: "Recent Activity";
                 empty-text: "No Recent Activity yet. Play some music to see recent activity";
@@ -67,6 +70,7 @@ export component HomeView inherits Rectangle {
                 track-clicked(t) => { root.track-clicked(t); }
             }
 
+            //most played
             HomeSection {
                 title: "Most Played";
                 empty-text: "Nothing played yet. Your most played songs will show up here";
@@ -76,6 +80,7 @@ export component HomeView inherits Rectangle {
                 track-clicked(t) => { root.track-clicked(t); }
             }
 
+            //recently added
             HomeSection {
                 title: "Recently Added";
                 empty-text: "Nothing added yet. Songs you add will show up here";

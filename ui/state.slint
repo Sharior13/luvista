@@ -34,12 +34,13 @@ export { TrackInfo, PlaylistInfo, NavSection }
 //    slint::Timer t;                                      //poll the audio engine for the seek bar
 //    t.start(slint::TimerMode::Repeated, std::chrono::milliseconds(250),
 //            [&] { state.set_position((float)audio.position()); state.set_playing(audio.is_playing()); });
+
 export global AppState {
-    //---------- navigation ----------
+    //navigation
     in-out property <NavSection> section: NavSection.home;
     in-out property <int> selected-playlist: -1;        //-1 = none
 
-    //---------- now playing (shown in the player bar) ----------
+    //now playing (shown in the player bar)
     in-out property <string> title: MockData.enabled ? MockData.now-title : "";
     in-out property <string> artist: MockData.enabled ? MockData.now-artist : "";
     in-out property <image> cover-art;                  //empty = gradient placeholder
@@ -53,18 +54,18 @@ export global AppState {
     in-out property <bool> queue-open: false;
     in-out property <bool> fullscreen: false;           //bound to the window
 
-    //---------- library (sidebar) ----------
+    //library (sidebar)
     in-out property <int> songs-count: MockData.enabled ? MockData.songs-count : 0;
     in-out property <int> favorites-count: MockData.enabled ? MockData.favorites-count : 0;
     in-out property <int> recordings-count: MockData.enabled ? MockData.recordings-count : 0;
     in-out property <[PlaylistInfo]> playlists: MockData.enabled ? MockData.playlists : [];
 
-    //---------- home page lists ----------
+    //home page lists
     in-out property <[TrackInfo]> recent: MockData.enabled && MockData.home-feed ? MockData.recent : [];
     in-out property <[TrackInfo]> most-played: MockData.enabled && MockData.home-feed ? MockData.most-played : [];
     in-out property <[TrackInfo]> recently-added: MockData.enabled && MockData.home-feed ? MockData.recently-added : [];
 
-    //---------- player actions ----------
+    //player actions
     //playing / shuffle / repeat / volume are already updated when these fire, read them with get_xxx()
     callback toggle-play();
     callback previous();
@@ -77,14 +78,14 @@ export global AppState {
     callback queue-toggled(bool);
     callback add-current-track();        //the + next to the song title
 
-    //---------- library and navigation actions ----------
+    //library and navigation actions
     callback section-changed(NavSection);
     callback playlist-clicked(int);      //index into playlists
     callback add-playlist();
     callback track-clicked(TrackInfo);   //a card on the home page
     callback show-all(string);           //"recent", "most-played" or "recently-added"
 
-    //---------- mock behaviour, replaced when the backend registers its own handler ----------
+    //mock behaviour, replaced when the backend registers its own handler
     next => { if (MockData.enabled) { MockData.next(); } }
     previous => { if (MockData.enabled) { MockData.previous(); } }
     seek(s) => { if (MockData.enabled) { MockData.seek(s); } }
