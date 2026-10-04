@@ -2,7 +2,8 @@ import { Theme } from "../theme.slint";
 
 //scrolls whatever is placed inside it (mouse wheel, touchpad, or the scrollbar on the right)
 export component PageScroll inherits Rectangle {
-    clip: true;
+    in property <bool> show-scrollbar: true;
+    in property <length> bar-offset: 0px;   //pushes the scrollbar sideways, past the right edge of the content
 
     property <length> pad: 8px;
     property <length> track-h: root.height - 2 * root.pad;
@@ -23,8 +24,9 @@ export component PageScroll inherits Rectangle {
         @children
     }
 
-    if root.scrollable : Rectangle {
-        x: parent.width - 16px;
+    if root.scrollable && root.show-scrollbar : Rectangle {
+        x: parent.width - 16px + root.bar-offset;
+        animate x { duration: Theme.anim-fast; easing: ease-in-out; }
         width: 16px;
         height: parent.height;
 

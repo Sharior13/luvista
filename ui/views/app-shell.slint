@@ -1,8 +1,10 @@
 //main screen after login is successful
+//This file only connects the components to AppState, there is no data or logic in here.
 import { Theme } from "../theme.slint";
-import { MockData } from "../mock-data.slint";
+import { AppState } from "../state.slint";
 import { PlayerBar } from "../components/player-bar.slint";
 import { SideNav, NavSection } from "../components/side-nav.slint";
+import { MockBackend } from "../components/mock-backend.slint";
 import { HomeView } from "home-view.slint";
 
 export component AppShell inherits Rectangle {
@@ -19,6 +21,17 @@ export component AppShell inherits Rectangle {
             x: 0px;
             y: 0px;
             height: parent.height;
+
+            section <=> AppState.section;
+            selected-playlist <=> AppState.selected-playlist;
+            songs-count: AppState.songs-count;
+            favorites-count: AppState.favorites-count;
+            recordings-count: AppState.recordings-count;
+            playlists: AppState.playlists;
+
+            section-changed(s) => { AppState.section-changed(s); }
+            playlist-clicked(i) => { AppState.playlist-clicked(i); }
+            add-playlist => { AppState.add-playlist(); }
         }
 
         //pages go inside this panel
@@ -29,14 +42,43 @@ export component AppShell inherits Rectangle {
             height: parent.height + 6px;
             background: Theme.background;
 
-            if side-nav.section == NavSection.home && side-nav.selected-playlist < 0 : HomeView {
-                //real data goes here later, empty lists show the empty states
-                recent: MockData.enabled ? MockData.recent : [];
-                most-played: MockData.enabled ? MockData.most-played : [];
-                recently-added: MockData.enabled ? MockData.recently-added : [];
+            if AppState.section == NavSection.home && AppState.selected-playlist < 0 : HomeView {
+                recent: AppState.recent;
+                most-played: AppState.most-played;
+                recently-added: AppState.recently-added;
+
+                show-all(which) => { AppState.show-all(which); }
+                track-clicked(t) => { AppState.track-clicked(t); }
             }
         }
     }
 
-    PlayerBar {}
+    PlayerBar {
+        title: AppState.title;
+        artist: AppState.artist;
+        cover-art: AppState.cover-art;
+        position: AppState.position;
+        duration: AppState.duration;
+
+        playing <=> AppState.playing;
+        shuffle <=> AppState.shuffle;
+        repeat <=> AppState.repeat;
+        volume <=> AppState.volume;
+        lyrics-open <=> AppState.lyrics-open;
+        queue-open <=> AppState.queue-open;
+        fullscreen <=> AppState.fullscreen;
+
+        toggle-play => { AppState.toggle-play(); }
+        previous => { AppState.previous(); }
+        next => { AppState.next(); }
+        seek(s) => { AppState.seek(s); }
+        volume-changed(v) => { AppState.volume-changed(v); }
+        shuffle-toggled(on) => { AppState.shuffle-toggled(on); }
+        repeat-toggled(on) => { AppState.repeat-toggled(on); }
+        lyrics-clicked => { AppState.lyrics-toggled(AppState.lyrics-open); }
+        queue-clicked => { AppState.queue-toggled(AppState.queue-open); }
+        add-clicked => { AppState.add-current-track(); }
+    }
+
+    MockBackend {}
 }

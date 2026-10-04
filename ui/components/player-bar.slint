@@ -38,13 +38,13 @@ export component PlayerBar inherits Rectangle {
     height: 100%;
 
     //track info
-    in property <string> title: "Slow Tide Home";
-    in property <string> artist: "Marlo Vey";
+    in property <string> title;
+    in property <string> artist;
     in property <image> cover-art;      //empty -> pink gradient circle
 
     //playback state, in seconds
-    in property <float> position: 32;
-    in property <float> duration: 214;
+    in property <float> position;
+    in property <float> duration;
 
     //two-way so they work standalone and can be bound with <=> later
     in-out property <bool> playing: false;
@@ -58,6 +58,8 @@ export component PlayerBar inherits Rectangle {
     callback seek(float);              //seconds
     callback volume-changed(float);    //0..1
     callback add-clicked();
+    callback shuffle-toggled(bool);
+    callback repeat-toggled(bool);
 
     //panels next to the volume bar, tinted pink while open
     in-out property <bool> lyrics-open: false;
@@ -188,7 +190,10 @@ export component PlayerBar inherits Rectangle {
                             IconButton {
                                 icon: @image-url("../icons/shuffle.svg");
                                 tint: root.shuffle ? Theme.pink : Theme.icon-dim;
-                                clicked => { root.shuffle = !root.shuffle; }
+                                clicked => {
+                                    root.shuffle = !root.shuffle;
+                                    root.shuffle-toggled(root.shuffle);
+                                }
                             }
                             //previous
                             IconButton {
@@ -235,7 +240,10 @@ export component PlayerBar inherits Rectangle {
                             IconButton {
                                 icon: @image-url("../icons/repeat.svg");
                                 tint: root.repeat ? Theme.pink : Theme.icon-dim;
-                                clicked => { root.repeat = !root.repeat; }
+                                clicked => {
+                                    root.repeat = !root.repeat;
+                                    root.repeat-toggled(root.repeat);
+                                }
                             }
                         }
 

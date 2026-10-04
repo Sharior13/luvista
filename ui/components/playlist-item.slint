@@ -11,6 +11,7 @@ export component PlaylistItem inherits Rectangle {
     in property <string> title;
     in property <image> art;       //empty -> gradient placeholder
     in property <bool> compact;
+    in property <int> variant: 0;      //picks the placeholder gradient while there is no art
     in property <bool> active;    //highlighted when this playlist is open
     callback clicked();
 
@@ -32,7 +33,11 @@ export component PlaylistItem inherits Rectangle {
         height: 36px;
         border-radius: 8px;
         clip: true;
-        background: @linear-gradient(135deg, Theme.playlist-art-start 0%, Theme.playlist-art-end 100%);
+        background: root.variant == 0
+            ? @linear-gradient(135deg, Theme.playlist-art-start 0%, Theme.playlist-art-end 100%)
+            : root.variant == 1
+                ? @linear-gradient(135deg, Theme.art-warm-start 0%, Theme.art-warm-end 100%)
+                : @linear-gradient(135deg, Theme.cover-start 0%, Theme.cover-end 100%);
 
         Image {
             source: root.art;

@@ -1,9 +1,40 @@
 import { TrackInfo } from "components/track-card.slint";
+import { PlaylistInfo } from "components/playlist-item.slint";
 
-//placeholder content for the home page. Set enabled to true to preview the filled-in state.
+//one entry of the fake play queue
+export struct MockTrack {
+    title: string,
+    artist: string,
+    duration: float,   //seconds
+}
+
+//All placeholder content lives here and nowhere else.
+//
+//state.slint (AppState) reads from this file as the *default* value of each property.
+//When the C++ backend sets a property, that default is replaced automatically, so mock
+//and real data can be mixed while the backend is built up piece by piece.
+//
+//  enabled    false = no mock data and no fake playback at all (use this once the backend is live,
+//             or from C++ with ui->global<MockData>().set_enabled(false))
+//  home-feed  false = the Home page sections show their empty states
 export global MockData {
-    out property <bool> enabled: true;
+    in-out property <bool> enabled: true;
+    in-out property <bool> home-feed: false;
 
+    //---------- library ----------
+    out property <int> songs-count: 128;
+    out property <int> favorites-count: 24;
+    out property <int> recordings-count: 6;
+
+    out property <[PlaylistInfo]> playlists: [
+        { title: "Late Night Drive" },
+        { title: "Morning Run" },
+        { title: "Focus Flow" },
+        { title: "Road Trip" },
+        { title: "Rainy Day" },
+    ];
+
+    //---------- home page ----------
     out property <[TrackInfo]> recent: [
         { title: "Slow Tide Home", subtitle: "Marlo Vey" },
         { title: "Paper Lanterns", subtitle: "Hollis & Reed" },
@@ -30,4 +61,44 @@ export global MockData {
         { title: "Wide Open", subtitle: "Hollis & Reed" },
         { title: "Late Trains", subtitle: "Juno Park" },
     ];
+
+    //---------- fake player ----------
+    out property <[MockTrack]> queue: [
+        { title: "Slow Tide Home", artist: "Marlo Vey", duration: 214 },
+        { title: "Paper Lanterns", artist: "Hollis & Reed", duration: 187 },
+        { title: "Northbound", artist: "The Quiet Fields", duration: 242 },
+        { title: "Glass Hours", artist: "Ines Alder", duration: 203 },
+        { title: "Low Orbit", artist: "Juno Park", duration: 171 },
+    ];
+
+    in-out property <int> index: 0;
+    in-out property <string> now-title: queue[0].title;
+    in-out property <string> now-artist: queue[0].artist;
+    in-out property <float> now-duration: queue[0].duration;
+    in-out property <float> position: 32;
+
+    public function load(i: int) {
+        index = Math.mod(i + queue.length, queue.length);
+        now-title = queue[index].title;
+        now-artist = queue[index].artist;
+        now-duration = queue[index].duration;
+        position = 0;
+    }
+    public function next() { load(index + 1); }
+    public function previous() {
+        if (position > 3) { position = 0; } else { load(index - 1); }
+    }
+    public function seek(seconds: float) { position = seconds; }
+    //pretend to play a card that was clicked on the home page
+    public function play-card(t: TrackInfo) {
+        now-title = t.title;
+        now-artist = t.subtitle;
+        now-duration = 200;
+        position = 0;
+    }
+    //called by MockBackend while "playing"
+    public function tick(dt: float) {
+        position += dt;
+        if (position >= now-duration) { next(); }
+    }
 }
