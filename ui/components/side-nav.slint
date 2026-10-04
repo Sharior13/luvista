@@ -137,9 +137,9 @@ export component SideNav inherits Rectangle {
             Image {
                 source: @image-url("../icons/playlist.svg");
                 colorize: Theme.text-primary;
-                width: 18px;
-                height: 18px;
-                x: 11px;
+                width: Theme.nav-icon-size;
+                height: Theme.nav-icon-size;
+                x: (40px - self.width) / 2;
                 y: (parent.height - self.height) / 2;
                 opacity: root.collapsed ? 0.0 : 1.0;
                 animate opacity { duration: Theme.anim-fast; }
@@ -165,7 +165,12 @@ export component SideNav inherits Rectangle {
                 y: (parent.height - self.height) / 2;
                 x: root.collapsed ? 4px : parent.width - 34px;
                 animate x { duration: Theme.anim-fast; easing: ease-in-out; }
-                border-radius: 8px;
+                        
+                //circle outline when collapsed, soft square hover when expanded
+                border-radius: root.collapsed ? self.width / 2 : 8px;
+                border-width: root.collapsed ? 1px : 0px;
+                border-color: Theme.text-muted;
+                animate border-radius, border-width { duration: Theme.anim-fast; }
                 background: plus-touch.has-hover ? Theme.nav-hover : transparent;
 
                 plus-touch := TouchArea {
@@ -175,8 +180,8 @@ export component SideNav inherits Rectangle {
                 Image {
                     source: @image-url("../icons/plus.svg");
                     colorize: Theme.text-primary;
-                    width: 18px;
-                    height: 18px;
+                    width: Theme.nav-icon-size;
+                    height: Theme.nav-icon-size;
                     x: (parent.width - self.width) / 2;
                     y: (parent.height - self.height) / 2;
                 }

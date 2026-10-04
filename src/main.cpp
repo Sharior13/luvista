@@ -1,4 +1,5 @@
 #include <string>
+#include "app.h"
 #include "audio/miniaudioBackend.h"
 #include "core/trackList.h"
 #include "core/playerController.h"
@@ -10,18 +11,18 @@
 //   (screen)       (rules)               (speaker)
 
 // Change this if you move the project or the music
-const std::string MUSIC_FOLDER = "C:/Users/LENOVO/Documents/CODEs/Music Player/luvista/src/audio";
+//const std::string MUSIC_FOLDER = "C:/Users/LENOVO/Documents/CODEs/Music Player/luvista/src/audio";
 
 int main()
 {
-    MiniaudioBackend audio;
-    TrackList tracks;
-    PlayerController player(audio, tracks);
-    ConsoleUI ui(player);
+    //MiniaudioBackend audio;
+    //TrackList tracks;
+    //PlayerController player(audio, tracks);
+    //ConsoleUI ui(player);
 
-    // auto ui = AppWindow::create();
-    // ui->run();
+     auto ui = AppWindow::create();
+     ui->run();
 
-    ui.run(MUSIC_FOLDER);
+    //ui.run(MUSIC_FOLDER);
     return 0;
 }
