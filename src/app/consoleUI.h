@@ -2,18 +2,20 @@
 #include <string>
 #include "../core/playerController.h"
 
-// ConsoleUI is the screen and the keyboard.
-// It shows the text, reads the keys, and asks the PlayerController
-// to do the work. It never touches the speaker directly.
+// THE WAITER (the screen and the keyboard)
+//
+// Draws the text, reads the key you press, and tells the DJ what you asked for.
+// It never talks to the speaker directly.
+
 class ConsoleUI {
 private:
-    PlayerController& player;
+    PlayerController& player;   // the DJ
 
-    void draw(const std::string& message);
+    void draw(const std::string& message);   // draws the whole screen
 
 public:
     ConsoleUI(PlayerController& p);
 
-    // Opens the music folder and runs the player until the user presses X
+    // Looks for songs in the folder, then runs until you press X
     void run(const std::string& folder);
 };

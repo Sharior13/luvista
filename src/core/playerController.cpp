@@ -5,6 +5,7 @@ using namespace std;
 namespace fs = std::filesystem;
 
 
+// The DJ gets a speaker and a librarian. Nothing is playing yet. Volume is 50.
 PlayerController::PlayerController(AudioBackend& a, TrackList& t)
     : audio(a), tracks(t)
 {
@@ -15,22 +16,27 @@ PlayerController::PlayerController(AudioBackend& a, TrackList& t)
     errorText = "";
 }
 
-// Scans the folder. True if at least one song was found.
+
+// Tells the librarian to look in the folder. True if at least one song was found.
 bool PlayerController::openFolder(const string& folder)
 {
     tracks.scan(folder);
     return tracks.getCount() > 0;
 }
 
-// Asks the list for song n, gives it to the speaker and presses play.
-// If the song cannot open, we still move to it, so "next" is never stuck.
+
+// Plays song number n:
+//   1. get its address from the librarian
+//   2. give the address to the speaker
+//   3. press play
+// If the song cannot be opened, we still move to it, so "next" never gets stuck.
 void PlayerController::playTrack(int n)
 {
     string path = tracks.getTrack(n);
 
     current = n;
     paused = false;
-    trackName = fs::path(path).stem().string();
+    trackName = songTitle(n);
 
     if (audio.load(path)) {
         errorText = "";
@@ -42,39 +48,48 @@ void PlayerController::playTrack(int n)
     }
 }
 
+
+// Next song. After the last song it goes back to song 1.
 void PlayerController::next()
 {
-    int n = tracks.getCount();
+    int songs = tracks.getCount();
 
-    if (n == 0)
+    if (songs == 0)
         return;
 
-    playTrack(current % n + 1);
+    playTrack(current % songs + 1);
 }
 
+
+// Song before. Before song 1 it jumps to the last song.
 void PlayerController::previous()
 {
-    int n = tracks.getCount();
+    int songs = tracks.getCount();
 
-    if (n == 0)
+    if (songs == 0)
         return;
 
-    playTrack((current - 2 + n) % n + 1);
+    playTrack((current - 2 + songs) % songs + 1);
 }
 
+
+// Pause button.
 void PlayerController::pause()
 {
     audio.pause();
     paused = true;
 }
 
+
+// Resume button.
 void PlayerController::resume()
 {
     audio.play();
     paused = false;
 }
 
-// Back to the start of the song, and play it
+
+// Go back to the start of the song and play it.
 void PlayerController::restart()
 {
     audio.seek(0);
@@ -82,28 +97,47 @@ void PlayerController::restart()
     paused = false;
 }
 
-// Jumps ahead, but stops at the end of the song
+
+// Jump ahead, but never past the end of the song.
 void PlayerController::forward(double seconds)
 {
-    double pos = audio.position() + seconds;
+    double newPlace = audio.position() + seconds;
 
-    if (pos > audio.duration())
-        pos = audio.duration();
+    if (newPlace > audio.duration())
+        newPlace = audio.duration();
 
-    audio.seek(pos);
+    audio.seek(newPlace);
 }
 
-// Jumps back, but stops at the start of the song
+
+// Jump back, but never before the start of the song.
 void PlayerController::back(double seconds)
 {
-    double pos = audio.position() - seconds;
+    double newPlace = audio.position() - seconds;
 
-    if (pos < 0)
-        pos = 0;
+    if (newPlace < 0)
+        newPlace = 0;
 
-    audio.seek(pos);
+    audio.seek(newPlace);
 }
 
+
+// Checks "is the song finished?". If yes, plays the next one.
+void PlayerController::update()
+{
+    if (current == 0 || paused)
+        return;                  // nothing is playing, or we paused
+
+    // a song with length 0 failed to open, so we skip this check for it
+    bool finished = audio.duration() > 0 &&
+                    audio.position() >= audio.duration() - 0.1;
+
+    if (finished)
+        next();
+}
+
+
+// Volume up by 10, but never above 100.
 void PlayerController::volumeUp()
 {
     volumePercent += 10;
@@ -114,6 +148,8 @@ void PlayerController::volumeUp()
     audio.set_volume(volumePercent / 100.0f);
 }
 
+
+// Volume down by 10, but never below 0.
 void PlayerController::volumeDown()
 {
     volumePercent -= 10;
@@ -124,6 +160,16 @@ void PlayerController::volumeDown()
     audio.set_volume(volumePercent / 100.0f);
 }
 
+
+// Gives back the name of song n, without folders and without ".mp3".
+// Example: "C:/Music/Sapphire.mp3" becomes "Sapphire"
+string PlayerController::songTitle(int n) const
+{
+    return fs::path(tracks.getTrack(n)).stem().string();
+}
+
+
+// Small "questions" the screen can ask. Each just gives back something.
 int PlayerController::volume() const        { return volumePercent; }
 bool PlayerController::isPaused() const     { return paused; }
 int PlayerController::currentIndex() const  { return current; }
