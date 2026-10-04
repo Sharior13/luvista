@@ -1,18 +1,8 @@
 #pragma once
 #include <string>
 
-// THE JOB DESCRIPTION OF A SPEAKER
-//
-// This file has NO real code. It only lists what any speaker must be able to do.
-// "= 0" means: "I promise this function exists, but I will not write it here."
-// The real speaker (MiniaudioBackend) is the one that writes the code.
-//
-// Why do this? So the rest of the program can say "speaker, play!"
-// without knowing which music library is inside the speaker.
-
 class AudioBackend {
 public:
-    // (needed by C++ so the real speaker is cleaned up properly)
     virtual ~AudioBackend() {}
 
     virtual bool load(const std::string& path) = 0;   // open a song file

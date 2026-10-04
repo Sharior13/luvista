@@ -170,11 +170,42 @@ string PlayerController::songTitle(int n) const
 
 
 // Small "questions" the screen can ask. Each just gives back something.
-int PlayerController::volume() const        { return volumePercent; }
-bool PlayerController::isPaused() const     { return paused; }
-int PlayerController::currentIndex() const  { return current; }
-int PlayerController::total() const         { return tracks.getCount(); }
-double PlayerController::position() const   { return audio.position(); }
-double PlayerController::duration() const   { return audio.duration(); }
-string PlayerController::songName() const   { return trackName; }
-string PlayerController::lastError() const  { return errorText; }
+int PlayerController::volume() const
+{
+    return volumePercent;
+}
+
+bool PlayerController::isPaused() const
+{
+    return paused;
+}
+
+int PlayerController::currentIndex() const
+{
+    return current;
+}
+
+int PlayerController::total() const
+{
+    return tracks.getCount();
+}
+
+double PlayerController::position() const
+{
+    return audio.position();
+}
+
+double PlayerController::duration() const
+{
+    return audio.duration();
+}
+
+string PlayerController::songName() const
+{
+    return trackName;
+}
+
+string PlayerController::lastError() const
+{
+    return errorText;
+}

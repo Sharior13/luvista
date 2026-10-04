@@ -3,11 +3,6 @@
 #include "audioBackend.h"
 #include "miniaudio.h"
 
-// THE REAL SPEAKER
-//
-// This is the ONLY class that uses the miniaudio library.
-// "override" means: "I am keeping one of the promises from AudioBackend".
-
 class MiniaudioBackend : public AudioBackend {
 private:
     ma_engine engine;        // the machine that makes sound

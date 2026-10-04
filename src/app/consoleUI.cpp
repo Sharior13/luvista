@@ -72,13 +72,34 @@ void ConsoleUI::run(const string& folder)
         key = toupper((unsigned char)_getch());   // wait for a key. 'p' and 'P' both work
 
         switch (key) {
-        case 'N': player.next();      message = "Next song";      break;
-        case 'V': player.previous();  message = "Previous song";  break;
-        case 'P': player.pause();     message = "Paused";         break;
-        case 'R': player.resume();    message = "Playing";        break;
-        case 'S': player.restart();   message = "Restarted";      break;
-        case 'F': player.forward();   message = "Forward 10s";    break;
-        case 'B': player.back();      message = "Back 10s";       break;
+        case 'N':
+            player.next();
+            message = "Next song";
+            break;
+        case 'V':
+            player.previous();
+            message = "Previous song";
+            break;
+        case 'P':
+            player.pause();
+            message = "Paused";
+            break;
+        case 'R':
+            player.resume();
+            message = "Playing";
+            break;
+        case 'S':
+            player.restart();
+            message = "Restarted";
+            break;
+        case 'F':
+            player.forward();
+            message = "Forward 10s";
+            break;
+        case 'B':
+            player.back();
+            message = "Back 10s";
+            break;
 
         case '+':
         case '=':                     // '=' is the same key as '+', so no Shift needed
