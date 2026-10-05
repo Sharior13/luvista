@@ -7,75 +7,81 @@
 using namespace std;
 namespace fs = std::filesystem;
 
-// The file where the song addresses are written, one per line
+// The notebook where we write one song address per line
 static const char* INDEX_FILE = "Song-index.dat";
 
 
-// Checks if a file is a music file by looking at the end of its name.
+// Says yes if a file is a music file.
+// It only looks at the ending of the name, like ".mp3".
 static bool isMusic(const fs::path& p)
 {
-    string ext = p.extension().string();
+    string ending = p.extension().string();
 
-    // make letters small, so .MP3 and .mp3 are the same
-    for (char& c : ext)
+    // make all letters small, so ".MP3" and ".mp3" are the same
+    for (char& c : ending)
         c = tolower((unsigned char)c);
 
-    return ext == ".mp3" || ext == ".wav" || ext == ".m4a" ||
-           ext == ".aac" || ext == ".aif" || ext == ".aiff";
+    return ending == ".mp3" || ending == ".wav" || ending == ".m4a" ||
+           ending == ".aac" || ending == ".aif" || ending == ".aiff";
 }
 
 
+// Starts with an empty folder name and zero songs.
 TrackList::TrackList()
 {
     folder = "";
     count = 0;
 }
 
-// Opens the folder and looks at every file inside (and inside sub-folders).
-// Each song found is counted and its address is written in Song-index.dat.
+
+// Walks through the folder (and the folders inside it).
+// For every music file: count it, and write its address in Song-index.dat.
 bool TrackList::scan(const string& folderPath)
 {
     count = 0;
     folder = folderPath;
 
-    error_code ec;
+    error_code problem;   // collects errors instead of crashing
 
-    if (!fs::is_directory(folder, ec))
-        return false;
+    if (!fs::is_directory(folder, problem))
+        return false;     // the folder is not there
 
-    ofstream out(INDEX_FILE);
+    ofstream notebook(INDEX_FILE);   // starts a fresh, empty notebook
 
     fs::recursive_directory_iterator it(
-        folder, fs::directory_options::skip_permission_denied, ec);
+        folder, fs::directory_options::skip_permission_denied, problem);
 
-    for (; !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
+    for (; !problem && it != fs::recursive_directory_iterator(); it.increment(problem)) {
 
-        if (it->is_regular_file(ec) && isMusic(it->path())) {
+        if (it->is_regular_file(problem) && isMusic(it->path())) {
             count++;
-            out << it->path().string() << "\n";
+            notebook << it->path().string() << "\n";
         }
     }
 
     return true;
 }
 
+
+// Says how many songs we found.
 int TrackList::getCount() const
 {
     return count;
 }
 
-// Opens the song list and reads down to line n.
-// Gives back "" if there is no such song.
+
+// Opens the notebook and reads down to line number n.
+// That line is the song address. If there is no such line, gives back "".
 string TrackList::getTrack(int n) const
 {
-    ifstream in(INDEX_FILE);
+    ifstream notebook(INDEX_FILE);
     string line;
-    int i = 0;
+    int lineNumber = 0;
 
-    while (getline(in, line)) {
-        i++;
+    while (getline(notebook, line)) {
+        lineNumber++;
 
-        if (i == n)
+        if (lineNumber == n)
             return line;
     }
 

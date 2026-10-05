@@ -3,24 +3,18 @@
 #include "audioBackend.h"
 #include "miniaudio.h"
 
-// MiniaudioBackend is the real speaker.
-// It is the ONLY class that talks to the miniaudio library.
 class MiniaudioBackend : public AudioBackend {
 private:
     ma_engine engine;        // the machine that makes sound
-    ma_sound sound;          // the song that is open now
-    bool engineReady;        // true if the machine started fine
+    ma_sound sound;          // the song that is open right now
+    bool engineReady;        // true if the machine started OK
     bool songLoaded;         // true if a song is open
-    float volume;            // the knob: 0.0 to 1.0
-    std::string errorText;   // what went wrong last time ("" = nothing)
+    float volume;            // volume knob: 0.0 to 1.0
+    std::string errorText;   // last problem ("" = no problem)
 
 public:
     MiniaudioBackend();
     ~MiniaudioBackend();
-
-    // a speaker cannot be copied
-    MiniaudioBackend(const MiniaudioBackend&) = delete;
-    MiniaudioBackend& operator=(const MiniaudioBackend&) = delete;
 
     bool load(const std::string& path) override;
     void play() override;
@@ -28,8 +22,8 @@ public:
     void seek(double seconds) override;
     void set_volume(float v) override;
 
-    double position() const override;
-    double duration() const override;
-    bool is_playing() const override;
-    std::string last_error() const override;
+    double position() override;
+    double duration() override;
+    bool is_playing() override;
+    std::string last_error() override;
 };

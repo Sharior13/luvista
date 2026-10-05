@@ -3,45 +3,51 @@
 #include "../audio/audioBackend.h"
 #include "trackList.h"
 
-// PlayerController is like a DJ.
-// It owns all the music-player rules: which song is next, how loud it is,
-// how far we may jump forward... The screen only asks it to do things.
-// It knows the AudioBackend CONTRACT, never miniaudio itself.
+// THE DJ (all the rules live here)
+//
+// The screen only says "next!" or "volume up!".
+// The DJ decides what that means, then tells the speaker what to do.
+//
+// The DJ does NOT make sound (the speaker does)
+// The DJ does NOT find songs   (the librarian does)
+// The DJ does NOT draw or read keys (the screen does)
+
 class PlayerController {
 private:
-    AudioBackend& audio;    // the speaker (any speaker that keeps the contract)
-    TrackList& tracks;      // the list of songs
+    AudioBackend& audio;    // the speaker (the & means "the real one, not a copy")
+    TrackList& tracks;      // the librarian
 
-    int current;            // song playing now (0 = none yet)
-    bool paused;            // true if we pressed pause
+    int current;            // song playing now (0 = nothing started yet)
+    bool paused;            // true after we press pause
     int volumePercent;      // 0 to 100
-    std::string trackName;  // name of the current song
-    std::string errorText;  // "" if the last action worked
+    std::string trackName;  // name of the song playing now
+    std::string errorText;  // what went wrong ("" = nothing)
 
-    void playTrack(int n);
+    void playTrack(int n);  // private: only the DJ uses this inside
 
 public:
     PlayerController(AudioBackend& a, TrackList& t);
 
-    // Looks for songs in a folder. Says true if at least one song was found.
+    // Ask the librarian to look in the folder. True if songs were found.
     bool openFolder(const std::string& folder);
 
     // Song buttons
-    void next();            // next song (after the last one, goes to the first)
-    void previous();        // song before (before the first, goes to the last)
+    void next();
+    void previous();
 
     // Play buttons
     void pause();
     void resume();
     void restart();
-    void forward(double seconds = 10);   // jump ahead, never past the end
-    void back(double seconds = 10);      // jump back, never before the start
+    void forward(double seconds = 10);
+    void back(double seconds = 10);
+    void update();            // call again and again: starts the next song when one ends
 
-    // Volume buttons (steps of 10, between 0 and 100)
+    // Volume buttons
     void volumeUp();
     void volumeDown();
 
-    // Questions the screen can ask
+    // Questions the screen can ask ("const" = only looks, changes nothing)
     int volume() const;
     bool isPaused() const;
     int currentIndex() const;
@@ -50,4 +56,5 @@ public:
     double duration() const;
     std::string songName() const;
     std::string lastError() const;
+    std::string songTitle(int n) const;
 };
