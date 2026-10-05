@@ -1,0 +1,10 @@
+//login/session state
+export global Session {
+    in property <bool> logged-in;
+    in property <bool> busy;
+    in property <string> error;
+
+	//functions to connect with cpp
+    callback login(string, string);
+    callback logout();
+}

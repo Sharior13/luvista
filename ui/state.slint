@@ -1,0 +1,107 @@
+import { MockData } from "mock-data.slint";
+import { TrackInfo } from "components/track-card.slint";
+import { PlaylistInfo } from "components/playlist-item.slint";
+import { NavSection } from "components/side-nav.slint";
+
+//re-exported so app.slint can hand them to the C++ side
+export { TrackInfo, PlaylistInfo, NavSection }
+
+//AppState is the single connection point between the UI and the C++ backend.
+//
+//  - Properties hold what the UI shows. The backend sets them (set_xxx) and may read them (get_xxx).
+//  - Callbacks are what the UI reports. The backend handles them (on_xxx).
+//
+//No other .slint file needs to be touched to connect the backend.
+//Every property starts out with a mock default from mock-data.slint. Setting it from C++
+//replaces that default, and the callbacks that have mock handlers below are replaced the
+//same way when the backend registers its own.
+//
+//C++ sketch (see the notes next to each property for the types):
+//
+//    auto ui = AppWindow::create();
+//    auto& state = ui->global<AppState>();
+//    ui->global<MockData>().set_enabled(false);          //switch the fake data and playback off
+//
+//    state.set_title("Song name");
+//    state.set_duration(214.0f);
+//    state.on_toggle_play([&] { state.get_playing() ? audio.play() : audio.pause(); });
+//    state.on_seek([&](float s) { audio.seek(s); });
+//
+//    auto recent = std::make_shared<slint::VectorModel<TrackInfo>>();
+//    recent->push_back(TrackInfo{ "Song", "Artist", {} });
+//    state.set_recent(recent);
+//
+//    slint::Timer t;                                      //poll the audio engine for the seek bar
+//    t.start(slint::TimerMode::Repeated, std::chrono::milliseconds(250),
+//            [&] { state.set_position((float)audio.position()); state.set_playing(audio.is_playing()); });
+export global AppState {
+    //---------- navigation ----------
+    in-out property <NavSection> section: NavSection.home;
+    in-out property <int> selected-playlist: -1;        //-1 = none
+
+    //---------- now playing (shown in the player bar) ----------
+    in-out property <string> title: MockData.enabled ? MockData.now-title : "";
+    in-out property <string> artist: MockData.enabled ? MockData.now-artist : "";
+    in-out property <image> cover-art;                  //empty = gradient placeholder
+    in-out property <float> position: MockData.enabled ? MockData.position : 0;   //seconds
+    in-out property <float> duration: MockData.enabled ? MockData.now-duration : 0;   //seconds
+    in-out property <bool> playing: false;
+    in-out property <bool> shuffle: false;
+    in-out property <bool> repeat: false;
+    in-out property <float> volume: 1.0;                //0..1
+    in-out property <bool> lyrics-open: false;
+    in-out property <bool> queue-open: false;
+    in-out property <bool> fullscreen: false;           //bound to the window
+
+    //---------- top bar ----------
+    in-out property <string> search-text;
+    in-out property <string> profile-initial: MockData.enabled ? MockData.profile-initial : "";   //Slint cannot cut a string, so the backend supplies the letter
+    in-out property <image> profile-picture;           //empty = gradient with the letter
+
+    //---------- library (sidebar) ----------
+    in-out property <int> songs-count: MockData.enabled ? MockData.songs-count : 0;
+    in-out property <int> favorites-count: MockData.enabled ? MockData.favorites-count : 0;
+    in-out property <int> recordings-count: MockData.enabled ? MockData.recordings-count : 0;
+    in-out property <[PlaylistInfo]> playlists: MockData.enabled ? MockData.playlists : [];
+
+    //---------- home page lists ----------
+    in-out property <[TrackInfo]> recent: MockData.enabled && MockData.home-feed ? MockData.recent : [];
+    in-out property <[TrackInfo]> most-played: MockData.enabled && MockData.home-feed ? MockData.most-played : [];
+    in-out property <[TrackInfo]> recently-added: MockData.enabled && MockData.home-feed ? MockData.recently-added : [];
+
+    //---------- player actions ----------
+    //playing / shuffle / repeat / volume are already updated when these fire, read them with get_xxx()
+    callback toggle-play();
+    callback previous();
+    callback next();
+    callback seek(float);                //seconds
+    callback volume-changed(float);      //0..1
+    callback shuffle-toggled(bool);
+    callback repeat-toggled(bool);
+    callback lyrics-toggled(bool);
+    callback queue-toggled(bool);
+    callback add-current-track();        //the + next to the song title
+
+    //---------- top bar actions ----------
+    callback search-changed(string);     //on every keystroke
+    callback search-submitted(string);   //Enter pressed
+    callback profile-clicked();
+
+    //---------- library and navigation actions ----------
+    callback section-changed(NavSection);
+    callback playlist-clicked(int);      //index into playlists
+    callback add-playlist();
+    callback track-clicked(TrackInfo);   //a card on the home page
+    callback show-all(string);           //"recent", "most-played" or "recently-added"
+
+    //---------- mock behaviour, replaced when the backend registers its own handler ----------
+    next => { if (MockData.enabled) { MockData.next(); } }
+    previous => { if (MockData.enabled) { MockData.previous(); } }
+    seek(s) => { if (MockData.enabled) { MockData.seek(s); } }
+    track-clicked(t) => {
+        if (MockData.enabled) {
+            MockData.play-card(t);
+            playing = true;
+        }
+    }
+}

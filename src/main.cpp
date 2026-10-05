@@ -1,10 +1,10 @@
 #include <string>
-#include <iostream>
+#include "app.h"
 #include "audio/miniaudioBackend.h"
 #include "core/trackList.h"
 #include "core/playerController.h"
-#include "core/favorites.h"
 #include "app/consoleUI.h"
+
 const std::string MUSIC_FOLDER = "C:/Users/LENOVO/Documents/CODEs/Music Player/luvista/src/audio";
 
 int main()
@@ -14,6 +14,9 @@ int main()
     PlayerController player(audio, tracks);  
     ConsoleUI ui(player);                    
 
-    ui.run(MUSIC_FOLDER);
+     auto ui = AppWindow::create();
+     ui->run();
+
+    //ui.run(MUSIC_FOLDER);
     return 0;
 }

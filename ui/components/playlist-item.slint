@@ -1,0 +1,63 @@
+import { Theme } from "../theme.slint";
+
+export struct PlaylistInfo {
+    title: string,
+    art: image,
+}
+
+//one playlist row: square cover art and a title
+//when compact is true only the art is visible
+export component PlaylistItem inherits Rectangle {
+    in property <string> title;
+    in property <image> art;       //empty -> gradient placeholder
+    in property <bool> compact;
+    in property <int> variant: 0;      //picks the placeholder gradient while there is no art
+    in property <bool> active;    //highlighted when this playlist is open
+    callback clicked();
+
+    height: 48px;
+    clip: true;
+    border-radius: 10px;
+    background: root.active ? Theme.background : (touch.has-hover ? Theme.nav-hover : transparent);
+
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.clicked(); }
+    }
+
+    //playlist art, it lines up with the icon column above it
+    Rectangle {
+        x: 2px;
+        y: (parent.height - self.height) / 2;
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        clip: true;
+        background: root.variant == 0
+            ? @linear-gradient(135deg, Theme.playlist-art-start 0%, Theme.playlist-art-end 100%)
+            : root.variant == 1
+                ? @linear-gradient(135deg, Theme.art-warm-start 0%, Theme.art-warm-end 100%)
+                : @linear-gradient(135deg, Theme.cover-start 0%, Theme.cover-end 100%);
+
+        Image {
+            source: root.art;
+            width: 100%;
+            height: 100%;
+            image-fit: cover;
+        }
+    }
+
+    //playlist name
+    Text {
+        x: 48px;
+        width: max(0px, parent.width - 48px - 12px);
+        height: parent.height;
+        text: root.title;
+        color: Theme.text-primary;
+        font-size: 16px;
+        vertical-alignment: center;
+        overflow: elide;
+        opacity: root.compact ? 0.0 : 1.0;
+        animate opacity { duration: Theme.anim-fast; }
+    }
+}

@@ -1,0 +1,94 @@
+import { Theme } from "../theme.slint";
+import { PageScroll } from "../components/page-scroll.slint";
+import { HomeSection } from "../components/home-section.slint";
+import { TrackInfo } from "../components/track-card.slint";
+
+//home page: welcome header, then Recent Activity, Most Played and Recently Added.
+//everything scrolls, and the sections show an empty message until their list has items
+export component HomeView inherits Rectangle {
+    in property <[TrackInfo]> recent;
+    in property <[TrackInfo]> most-played;
+    in property <[TrackInfo]> recently-added;
+    callback show-all(string);        //"recent", "most-played" or "recently-added"
+    callback track-clicked(TrackInfo);
+
+    PageScroll {
+        VerticalLayout {
+            padding-left: 36px;
+            padding-right: 36px;
+            padding-top: 40px;
+            padding-bottom: 40px;
+            spacing: 32px;
+
+            //welcome header
+            VerticalLayout {
+                spacing: 12px;
+
+                Rectangle {
+                    height: 88px;
+                    Rectangle {
+                        x: (parent.width - self.width) / 2;
+                        width: 88px;
+                        height: 88px;
+                        border-radius: self.width / 2;
+                        background: @linear-gradient(135deg, Theme.cover-start 0%, Theme.cover-end 100%);
+                    }
+                }
+
+                //header title
+                Text {
+                    text: "Your music, our files";
+                    color: Theme.text-primary;
+                    font-size: 26px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                }
+
+                //header subtitle
+                Rectangle {
+                    height: 48px;
+                    Text {
+                        x: (parent.width - self.width) / 2;
+                        width: min(440px, parent.width);
+                        height: parent.height;
+                        text: "Luvista plays the songs you have already downloaded to your computer. Add them once and they stay here.";
+                        color: Theme.text-primary;
+                        font-size: 15px;
+                        wrap: word-wrap;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+
+            //recent activity
+            HomeSection {
+                title: "Recent Activity";
+                empty-text: "No Recent Activity yet. Play some music to see recent activity";
+                items: root.recent;
+                variant-offset: 0;
+                show-all => { root.show-all("recent"); }
+                track-clicked(t) => { root.track-clicked(t); }
+            }
+
+            //most played
+            HomeSection {
+                title: "Most Played";
+                empty-text: "Nothing played yet. Your most played songs will show up here";
+                items: root.most-played;
+                variant-offset: 1;
+                show-all => { root.show-all("most-played"); }
+                track-clicked(t) => { root.track-clicked(t); }
+            }
+
+            //recently added
+            HomeSection {
+                title: "Recently Added";
+                empty-text: "Nothing added yet. Songs you add will show up here";
+                items: root.recently-added;
+                variant-offset: 2;
+                show-all => { root.show-all("recently-added"); }
+                track-clicked(t) => { root.track-clicked(t); }
+            }
+        }
+    }
+}
