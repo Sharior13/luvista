@@ -14,6 +14,8 @@ int main()
     PlayerController player(audio, tracks);  
     ConsoleUI ui(player);                    
 
+    Favorite f;
+    f.remove("BoyWithUke");
     ui.run(MUSIC_FOLDER);
     return 0;
 }

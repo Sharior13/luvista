@@ -42,6 +42,8 @@ void PlayerController::playTrack(int n)
         errorText = "";
         audio.set_volume(volumePercent / 100.0f);
         audio.play();
+
+        recent.add(path);
     }
     else {
         errorText = audio.last_error();
@@ -160,9 +162,27 @@ void PlayerController::volumeDown()
     audio.set_volume(volumePercent / 100.0f);
 }
 
+void PlayerController::toggleFavorite()
+{
+    if (current == 0)
+        return;
 
-// Gives back the name of song n, without folders and without ".mp3".
-// Example: "C:/Music/Sapphire.mp3" becomes "Sapphire"
+    std::string path = tracks.getTrack(current);
+
+    if (favorites.contains(path))
+        favorites.remove(path);
+    else
+        favorites.add(path);
+}
+
+bool PlayerController::isFavorite() const
+{
+    if (current == 0)
+        return false;
+
+    return favorites.contains(tracks.getTrack(current));
+}
+
 string PlayerController::songTitle(int n) const
 {
     return fs::path(tracks.getTrack(n)).stem().string();
@@ -200,6 +220,16 @@ double PlayerController::duration() const
     return audio.duration();
 }
 
+int PlayerController::favoriteCount() const
+{
+    return favorites.count();
+}
+
+std::string PlayerController::favorite(int n) const
+{
+    return favorites.get(n);
+}
+
 string PlayerController::songName() const
 {
     return trackName;
@@ -208,4 +238,14 @@ string PlayerController::songName() const
 string PlayerController::lastError() const
 {
     return errorText;
+}
+
+int PlayerController::recentCount() const
+{
+    return recent.count();
+}
+
+std::string PlayerController::recentSong(int n) const
+{
+    return recent.get(n);
 }
