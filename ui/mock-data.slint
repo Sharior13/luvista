@@ -21,7 +21,10 @@ export global MockData {
     in-out property <bool> enabled: true;
     in-out property <bool> home-feed: true;
 
-    //library
+    //---------- profile ----------
+    out property <string> profile-initial: "A";     //first letter of the profile name
+
+    //---------- library ----------
     out property <int> songs-count: 128;
     out property <int> favorites-count: 24;
     out property <int> recordings-count: 6;
@@ -34,8 +37,7 @@ export global MockData {
         { title: "Rainy Day" },
     ];
 
-    //home page
-    //recent activity
+    //---------- home page ----------
     out property <[TrackInfo]> recent: [
         { title: "Slow Tide Home", subtitle: "Marlo Vey" },
         { title: "Paper Lanterns", subtitle: "Hollis & Reed" },
@@ -45,7 +47,6 @@ export global MockData {
         { title: "Low Orbit", subtitle: "Juno Park" },
     ];
 
-    //most played
     out property <[TrackInfo]> most-played: [
         { title: "Slow Tide Home", subtitle: "Marlo Vey" },
         { title: "Glass Hours", subtitle: "Ines Alder" },
@@ -55,7 +56,6 @@ export global MockData {
         { title: "Paper Lanterns", subtitle: "Hollis & Reed" },
     ];
 
-    //recently added
     out property <[TrackInfo]> recently-added: [
         { title: "Harbor Lights", subtitle: "Ines Alder" },
         { title: "Quiet Rooms", subtitle: "Juno Park" },
@@ -65,7 +65,7 @@ export global MockData {
         { title: "Late Trains", subtitle: "Juno Park" },
     ];
 
-    //fake player
+    //---------- fake player ----------
     out property <[MockTrack]> queue: [
         { title: "Slow Tide Home", artist: "Marlo Vey", duration: 214 },
         { title: "Paper Lanterns", artist: "Hollis & Reed", duration: 187 },

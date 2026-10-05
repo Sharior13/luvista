@@ -1,0 +1,120 @@
+import { Theme } from "../theme.slint";
+import { SearchField } from "search-field.slint";
+import { Avatar } from "avatar.slint";
+
+//round icon button used for home and for the collapsed search
+component RoundButton inherits Rectangle {
+    in property <image> icon;
+    in property <bool> active;
+    callback clicked();
+
+    width: 40px;
+    height: 40px;
+    border-radius: self.width / 2;
+    background: root.active ? Theme.background : (touch.has-hover ? Theme.nav-hover : transparent);
+
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.clicked(); }
+    }
+    Image {
+        source: root.icon;
+        colorize: Theme.text-primary;
+        width: 22px;
+        height: 22px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+    }
+}
+
+//Home button + search in the middle, profile on the far right.
+//When the bar gets narrow the search box turns into a button that opens it as a popup.
+export component TopBar inherits Rectangle {
+    in-out property <string> search-text;
+    in property <string> profile-initial;
+    in property <image> profile-picture;
+    in property <bool> home-active;
+    callback home-clicked();
+    callback search-edited(string);
+    callback search-submitted(string);
+    callback profile-clicked();
+
+    property <length> btn: 40px;
+    property <length> gap: 10px;
+    property <length> inset: (Theme.top-bar-height - root.btn) / 2;
+    //room kept free on both sides so the middle group stays centered
+    property <length> side: root.inset + root.btn + 12px;
+
+    property <bool> compact: root.width < Theme.bp-search;
+    property <length> search-w: Math.max(0px, Math.min(Theme.search-max-width, root.width - 2 * root.side - root.btn - root.gap));
+    property <length> group-w: root.compact ? 2 * root.btn + root.gap : root.btn + root.gap + root.search-w;
+    property <length> group-x: (root.width - root.group-w) / 2;
+
+    height: Theme.top-bar-height;
+    background: Theme.primary;
+    border-width: 0px;
+    border-radius: 12px;
+    border-color: Theme.accent;
+
+    RoundButton {
+        x: root.group-x;
+        y: root.inset - 1px;
+        icon: @image-url("../icons/home.svg");
+        active: root.home-active;
+        clicked => { root.home-clicked(); }
+    }
+
+    //full search box
+    if !root.compact : SearchField {
+        x: root.group-x + root.btn + root.gap;
+        y: root.inset - 1px;
+        width: root.search-w;
+        text <=> root.search-text;
+        edited(t) => { root.search-edited(t); }
+        accepted(t) => { root.search-submitted(t); }
+    }
+
+    //narrow: a search button that opens the same box in a popup under the bar
+    if root.compact : RoundButton {
+        x: root.group-x + root.btn + root.gap;
+        y: root.inset - 1px;
+        icon: @image-url("../icons/search.svg");
+        clicked => { search-popup.show(); }
+    }
+
+    search-popup := PopupWindow {
+        width: Math.min(440px, root.width - 24px);
+        height: 64px;
+        x: (root.width - self.width) / 2;
+        y: root.height + 6px;
+        close-policy: PopupClosePolicy.close-on-click-outside;
+
+        Rectangle {
+            background: Theme.primary;
+            border-width: 1px;
+            border-radius: 12px;
+            border-color: Theme.accent;
+
+            SearchField {
+                autofocus: true;
+                x: 12px;
+                y: 12px;
+                width: parent.width - 24px;
+                text <=> root.search-text;
+                edited(t) => { root.search-edited(t); }
+                accepted(t) => {
+                    root.search-submitted(t);
+                    search-popup.close();
+                }
+            }
+        }
+    }
+
+    Avatar {
+        x: root.width - root.inset - root.btn;
+        y: root.inset - 1px;
+        initial: root.profile-initial;
+        picture: root.profile-picture;
+        clicked => { root.profile-clicked(); }
+    }
+}

@@ -25,7 +25,7 @@ export component SideNav inherits Rectangle {
     VerticalLayout {
         padding-left: 14px;
         padding-right: 14px;
-        padding-top: 35px;
+        padding-top: 20px;
         padding-bottom: 14px;
         spacing: 12px;
 
@@ -33,23 +33,38 @@ export component SideNav inherits Rectangle {
         Rectangle {
             height: 40px;
 
-            TouchArea {
+            //declared first so it sits underneath, everything drawn above it lets the mouse through
+            header-touch := TouchArea {
                 mouse-cursor: MouseCursor.pointer;
                 clicked => { root.collapsed = !root.collapsed; }
             }
 
-            //logo
+            //logo, fades out on hover (only when collapsed)
             Rectangle {
                 x: 8px;
                 y: (parent.height - self.height) / 2;
-                width: 24px;
-                height: 24px;
+                width: 30px;
+                height: 30px;
                 border-radius: self.width / 2;
                 background: @linear-gradient(135deg, Theme.cover-start 0%, Theme.cover-end 100%);
+                opacity: header-touch.has-hover && root.collapsed ? 0.0 : 1.0;
+                animate opacity { duration: Theme.anim-fast; }
+            }
+
+            //collapsed: sidebar icon, fades in on hover in the same spot as the logo
+            Image {
+                source: @image-url("../icons/sidebar-open.svg");
+                colorize: Theme.text-primary;
+                width: 24px;
+                height: 24px;
+                x: 8px + (30px - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                opacity: header-touch.has-hover && root.collapsed ? 1.0 : 0.0;
+                animate opacity { duration: Theme.anim-fast; }
             }
 
             //app name
-            Text {
+            app-title := Text {
                 x: 44px;
                 width: max(0px, parent.width - 44px);
                 height: parent.height;
@@ -60,6 +75,18 @@ export component SideNav inherits Rectangle {
                 vertical-alignment: center;
                 overflow: elide;
                 opacity: root.collapsed ? 0.0 : 1.0;
+                animate opacity { duration: Theme.anim-fast; }
+            }
+
+            //expanded: sidebar icon, fades in on hover just right of the title
+            Image {
+                source: @image-url("../icons/sidebar-open.svg");
+                colorize: Theme.text-primary;
+                width: 22px;
+                height: 22px;
+                x: Math.min(app-title.x + app-title.preferred-width + 10px, parent.width - self.width);
+                y: 12px;
+                opacity: header-touch.has-hover && !root.collapsed ? 1.0 : 0.0;
                 animate opacity { duration: Theme.anim-fast; }
             }
         }
@@ -165,7 +192,7 @@ export component SideNav inherits Rectangle {
                 y: (parent.height - self.height) / 2;
                 x: root.collapsed ? 4px : parent.width - 34px;
                 animate x { duration: Theme.anim-fast; easing: ease-in-out; }
-                        
+
                 //circle outline when collapsed, soft square hover when expanded
                 border-radius: root.collapsed ? self.width / 2 : 8px;
                 border-width: root.collapsed ? 1px : 0px;

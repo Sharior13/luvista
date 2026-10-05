@@ -4,6 +4,7 @@ import { Theme } from "../theme.slint";
 import { AppState } from "../state.slint";
 import { PlayerBar } from "../components/player-bar.slint";
 import { SideNav, NavSection } from "../components/side-nav.slint";
+import { TopBar } from "../components/top-bar.slint";
 import { MockBackend } from "../components/mock-backend.slint";
 import { HomeView } from "home-view.slint";
 
@@ -37,9 +38,9 @@ export component AppShell inherits Rectangle {
         //pages go inside this panel
         Rectangle {
             x: side-nav.width;
-            y: 0px;
+            y: Theme.top-bar-height + 2 * Theme.top-bar-margin;
             width: parent.width - side-nav.width;
-            height: parent.height + 6px;
+            height: parent.height + 6px - self.y;
             background: Theme.background;
 
             //control which page to show
@@ -53,9 +54,28 @@ export component AppShell inherits Rectangle {
                 track-clicked(t) => { AppState.track-clicked(t); }
             }
         }
+
+        top-bar := TopBar {
+            x: side-nav.width + Theme.top-bar-margin;
+            y: Theme.top-bar-margin;
+            width: parent.width - side-nav.width - 2 * Theme.top-bar-margin;
+
+            search-text <=> AppState.search-text;
+            profile-initial: AppState.profile-initial;
+            profile-picture: AppState.profile-picture;
+            home-active: AppState.section == NavSection.home && AppState.selected-playlist < 0;
+
+            home-clicked => {
+                AppState.selected-playlist = -1;
+                AppState.section = NavSection.home;
+                AppState.section-changed(NavSection.home);
+            }
+            search-edited(t) => { AppState.search-changed(t); }
+            search-submitted(t) => { AppState.search-submitted(t); }
+            profile-clicked => { AppState.profile-clicked(); }
+        }
     }
 
-    //bottom player bar
     PlayerBar {
         title: AppState.title;
         artist: AppState.artist;
