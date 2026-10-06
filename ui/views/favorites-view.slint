@@ -1,0 +1,30 @@
+import { LibraryPage } from "../components/library-page.slint";
+import { SongInfo } from "../components/song-row.slint";
+import { Format } from "../format.slint";
+
+//favorites page ("Liked Songs").
+export component FavoritesView inherits Rectangle {
+    in property <[SongInfo]> songs;
+    in property <float> total-seconds;
+    callback song-clicked(int);
+    callback play-clicked();
+    callback shuffle-clicked();
+    callback search-edited(string);
+    callback sort-changed(int);
+
+    LibraryPage {
+        page-title: "Favorites";
+        name: "Liked Songs";
+        subtitle: Format.songs(root.songs.length, root.total-seconds);
+        header-icon: @image-url("../icons/heart.svg");
+        search-placeholder: "Search Favorites";
+        songs: root.songs;
+        empty-text: "No liked songs yet. Songs you like will show up here";
+
+        song-clicked(i) => { root.song-clicked(i); }
+        play-clicked => { root.play-clicked(); }
+        shuffle-clicked => { root.shuffle-clicked(); }
+        search-edited(t) => { root.search-edited(t); }
+        sort-changed(i) => { root.sort-changed(i); }
+    }
+}

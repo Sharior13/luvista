@@ -1,5 +1,6 @@
 import { TrackInfo } from "components/track-card.slint";
 import { PlaylistInfo } from "components/playlist-item.slint";
+import { SongInfo } from "components/song-row.slint";
 
 //one entry of the fake play queue
 export struct MockTrack {
@@ -8,23 +9,18 @@ export struct MockTrack {
     duration: float,   //seconds
 }
 
-//All placeholder content lives here and nowhere else.
-//
+//all placeholder content lives here and nowhere else 
 //state.slint (AppState) reads from this file as the *default* value of each property.
-//When the C++ backend sets a property, that default is replaced automatically, so mock
-//and real data can be mixed while the backend is built up piece by piece.
-//
-//  enabled    false = no mock data and no fake playback at all (use this once the backend is live,
-//             or from C++ with ui->global<MockData>().set_enabled(false))
-//  home-feed  false = the Home page sections show their empty states
+//when the C++ backend sets a property, that default is replaced automatically, so mock and real data can be mixed while the backend is built up piece by piece.
 export global MockData {
     in-out property <bool> enabled: true;
     in-out property <bool> home-feed: true;
+    in-out property <bool> library-feed: true;
 
-    //---------- profile ----------
+    //profile
     out property <string> profile-initial: "A";     //first letter of the profile name
 
-    //---------- library ----------
+    //library
     out property <int> songs-count: 128;
     out property <int> favorites-count: 24;
     out property <int> recordings-count: 6;
@@ -37,7 +33,7 @@ export global MockData {
         { title: "Rainy Day" },
     ];
 
-    //---------- home page ----------
+    //home page
     out property <[TrackInfo]> recent: [
         { title: "Slow Tide Home", subtitle: "Marlo Vey" },
         { title: "Paper Lanterns", subtitle: "Hollis & Reed" },
@@ -65,7 +61,41 @@ export global MockData {
         { title: "Late Trains", subtitle: "Juno Park" },
     ];
 
-    //---------- fake player ----------
+    //library pages
+    out property <[SongInfo]> songs: [
+        { title: "Slow Tide Home", artist: "Marlo Vey", album: "Tidal Hours", date-added: "yesterday", length: "3:22" },
+        { title: "Paper Lanterns", artist: "Hollis & Reed", album: "", date-added: "2 weeks", length: "3:07" },
+        { title: "Northbound", artist: "The Quiet Fields", album: "Long Way Round", date-added: "2 weeks", length: "4:02" },
+        { title: "Glass Hours", artist: "Ines Alder", album: "", date-added: "4 weeks", length: "3:23" },
+        { title: "Soft Static", artist: "Marlo Vey", album: "Tidal Hours", date-added: "1 month", length: "2:58" },
+        { title: "Low Orbit", artist: "Juno Park", album: "Low Orbit", date-added: "2 months", length: "2:51" },
+        { title: "Evergreen", artist: "Hollis & Reed", album: "", date-added: "3 months", length: "3:44" },
+        { title: "Harbor Lights", artist: "Ines Alder", album: "", date-added: "3 months", length: "3:36" },
+    ];
+    out property <float> songs-seconds: 1587;
+
+    out property <[SongInfo]> favorites: [
+        { title: "Slow Tide Home", artist: "Marlo Vey", album: "Tidal Hours", date-added: "yesterday", length: "3:22" },
+        { title: "Paper Lanterns", artist: "Hollis & Reed", album: "", date-added: "2 weeks", length: "3:07" },
+        { title: "Glass Hours", artist: "Ines Alder", album: "", date-added: "4 weeks", length: "3:23" },
+    ];
+    out property <float> favorites-seconds: 592;
+
+    out property <[SongInfo]> recordings: [
+        { title: "Recording 3", artist: "Voice memo", album: "", date-added: "today", length: "0:48" },
+        { title: "Guitar idea", artist: "Voice memo", album: "", date-added: "3 days", length: "2:15" },
+        { title: "Recording 1", artist: "Voice memo", album: "", date-added: "1 month", length: "1:03" },
+    ];
+
+    out property <[SongInfo]> playlist-songs: [
+        { title: "Northbound", artist: "The Quiet Fields", album: "Long Way Round", date-added: "yesterday", length: "4:02" },
+        { title: "Low Orbit", artist: "Juno Park", album: "Low Orbit", date-added: "3 days", length: "2:51" },
+        { title: "Evergreen", artist: "Hollis & Reed", album: "", date-added: "1 week", length: "3:44" },
+        { title: "Soft Static", artist: "Marlo Vey", album: "Tidal Hours", date-added: "2 weeks", length: "2:58" },
+    ];
+    out property <float> playlist-seconds: 835;
+
+    //fake player
     out property <[MockTrack]> queue: [
         { title: "Slow Tide Home", artist: "Marlo Vey", duration: 214 },
         { title: "Paper Lanterns", artist: "Hollis & Reed", duration: 187 },
@@ -96,6 +126,13 @@ export global MockData {
     public function play-card(t: TrackInfo) {
         now-title = t.title;
         now-artist = t.subtitle;
+        now-duration = 200;
+        position = 0;
+    }
+    //pretend to play a song that was clicked in one of the library lists
+    public function play-song(t: SongInfo) {
+        now-title = t.title;
+        now-artist = t.artist;
         now-duration = 200;
         position = 0;
     }
