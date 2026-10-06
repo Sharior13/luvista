@@ -1,0 +1,12 @@
+import { MockData } from "../mock-data.slint";
+import { AppState } from "../state.slint";
+
+//fake playback: moves the seek bar while the player is "playing".
+//Does nothing once MockData.enabled is false.
+export component MockBackend {
+    Timer {
+        interval: 250ms;
+        running: MockData.enabled && AppState.playing;
+        triggered => { MockData.tick(0.25); }
+    }
+}

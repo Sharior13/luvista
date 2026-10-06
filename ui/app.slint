@@ -1,6 +1,31 @@
+import { Session } from "session.slint";
+import { LoginView } from "views/login-view.slint";
+import { AppShell } from "views/app-shell.slint";
+import { AppState } from "state.slint";
+
+//everything the C++ side needs: ui->global<AppState>() and the types used by its lists
+export { AppState, TrackInfo, PlaylistInfo, NavSection } from "state.slint";
+export { MockData } from "mock-data.slint";
+
 export component AppWindow inherits Window {
-    title: "Music Player";
-    preferred-width: 600px;
-    preferred-height: 400px;
-    Text { text: "Playing..."; }
+    title: "Luvista Music Player";
+
+    //size to open app at
+    preferred-width: 1000px;
+    preferred-height: 650px;
+
+    //minimum allowed app size
+    min-width: 800px;
+    min-height: 600px;
+
+    //the fullscreen button in the player bar toggles this
+    full-screen <=> AppState.fullscreen;
+
+    //login gate
+
+    //design login screen first and then uncomment
+    // if !Session.logged-in : LoginView {}
+    // if Session.logged-in : AppShell {}
+
+    AppShell {}
 }

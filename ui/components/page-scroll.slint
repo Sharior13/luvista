@@ -1,0 +1,57 @@
+import { Theme } from "../theme.slint";
+
+//scrolls whatever is placed inside it (mouse wheel, touchpad, or the scrollbar on the right)
+export component PageScroll inherits Rectangle {
+    in property <bool> show-scrollbar: true;
+    in property <length> bar-offset: 0px;   //pushes the scrollbar sideways, past the right edge of the content
+
+    property <length> pad: 8px;
+    property <length> track-h: root.height - 2 * root.pad;
+    property <bool> scrollable: flick.content-height > flick.height + 0.5px;
+    property <length> thumb-h: Math.max(36px, root.track-h * (flick.height / Math.max(1px, flick.content-height)));
+    property <length> travel: Math.max(1px, root.track-h - root.thumb-h);
+    property <float> progress: root.scrollable
+        ? Math.min(1, Math.max(0, -flick.content-y / (flick.content-height - flick.height)))
+        : 0;
+
+    //jump/drag the content so the thumb follows the mouse
+    function scroll-to(my: length) {
+        flick.content-y = -Math.min(1, Math.max(0, (my - root.pad - root.thumb-h / 2) / root.travel))
+            * (flick.content-height - flick.height);
+    }
+
+    flick := Flickable {
+        @children
+    }
+
+    //main scrollbar logic
+    if root.scrollable && root.show-scrollbar : Rectangle {
+        x: parent.width - 16px + root.bar-offset;
+        animate x { duration: Theme.anim-fast; easing: ease-in-out; }
+        width: 16px;
+        height: parent.height;
+
+        Rectangle {
+            x: 5px;
+            y: root.pad + root.progress * root.travel;
+            width: 6px;
+            height: root.thumb-h;
+            border-radius: 3px;
+            background: (bar-touch.has-hover || bar-touch.pressed) ? Theme.scrollbar-thumb-hover : Theme.scrollbar-thumb;
+        }
+
+        bar-touch := TouchArea {
+            mouse-cursor: MouseCursor.pointer;
+            pointer-event(e) => {
+                if (e.button == PointerEventButton.left && e.kind == PointerEventKind.down) {
+                    root.scroll-to(self.mouse-y);
+                }
+            }
+            moved => {
+                if (self.pressed) {
+                    root.scroll-to(self.mouse-y);
+                }
+            }
+        }
+    }
+}
