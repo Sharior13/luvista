@@ -4,7 +4,6 @@
 #include "miniaudio.h"
 #include "miniaudioBackend.h"
 
-using namespace std;
 
 
 // Runs when the speaker is created.
@@ -36,7 +35,7 @@ MiniaudioBackend::~MiniaudioBackend()
 
 // Opens a song file so it is ready to play.
 // Gives back true if it worked, false if it did not.
-bool MiniaudioBackend::load(const string& path)
+bool MiniaudioBackend::load(const std::string& path)
 {
     if (!engineReady) {
         errorText = "Audio engine failed to start";
@@ -53,7 +52,7 @@ bool MiniaudioBackend::load(const string& path)
     ma_result result = ma_sound_init_from_file(&engine, path.c_str(), 0, NULL, NULL, &sound);
 
     if (result != MA_SUCCESS) {
-        errorText = string("Cannot open song: ") + ma_result_description(result);
+        errorText = std::string("Cannot open song: ") + ma_result_description(result);
         return false;
     }
 
@@ -148,7 +147,7 @@ bool MiniaudioBackend::is_playing()
 
 
 // The last problem, or "" if there was none.
-string MiniaudioBackend::last_error()
+std::string MiniaudioBackend::last_error()
 {
     return errorText;
 }

@@ -18,13 +18,29 @@ bool RecentList::contains(const std::string& path) const
     return false;
 }
 
+// Puts the song at the TOP of the list (newest first).
+// If the song was already there, the old copy is dropped.
+// The list never grows past 10 songs.
 void RecentList::add(const std::string& path)
 {
-    if (contains(path))
-        return;
+    std::string newList = path + "\n";   // newest song goes first
+    int kept = 1;
 
-    std::ofstream File(RECENT_FILE, std::ios::app);
-    File << path << "\n";
+    std::ifstream in(RECENT_FILE);
+    std::string line;
+
+    while (kept < 10 && std::getline(in, line))
+    {
+        if (line != path)                // skip the old copy of this song
+        {
+            newList += line + "\n";
+            kept++;
+        }
+    }
+    in.close();                          // finish reading before writing
+
+    std::ofstream out(RECENT_FILE);      // this erases the old file
+    out << newList;
 }
 
 int RecentList::count() const

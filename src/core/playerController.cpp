@@ -1,7 +1,6 @@
 #include "playerController.h"
 #include <filesystem>
 
-using namespace std;
 namespace fs = std::filesystem;
 
 
@@ -18,7 +17,7 @@ PlayerController::PlayerController(AudioBackend& a, TrackList& t)
 
 
 // Tells the librarian to look in the folder. True if at least one song was found.
-bool PlayerController::openFolder(const string& folder)
+bool PlayerController::openFolder(const std::string& folder)
 {
     tracks.scan(folder);
     return tracks.getCount() > 0;
@@ -32,7 +31,7 @@ bool PlayerController::openFolder(const string& folder)
 // If the song cannot be opened, we still move to it, so "next" never gets stuck.
 void PlayerController::playTrack(int n)
 {
-    string path = tracks.getTrack(n);
+    std::string path = tracks.getTrack(n);
 
     current = n;
     paused = false;
@@ -48,6 +47,16 @@ void PlayerController::playTrack(int n)
     else {
         errorText = audio.last_error();
     }
+}
+
+
+// Plays the song number n (1 = first song). Wrong numbers are ignored.
+void PlayerController::playSong(int n)
+{
+    if (n < 1 || n > tracks.getCount())
+        return;
+
+    playTrack(n);
 }
 
 
@@ -162,6 +171,8 @@ void PlayerController::volumeDown()
     audio.set_volume(volumePercent / 100.0f);
 }
 
+
+// Heart button: adds the song to favorites, or removes it if it is already there.
 void PlayerController::toggleFavorite()
 {
     if (current == 0)
@@ -175,6 +186,8 @@ void PlayerController::toggleFavorite()
         favorites.add(path);
 }
 
+
+// Is the song playing now a favorite?
 bool PlayerController::isFavorite() const
 {
     if (current == 0)
@@ -183,7 +196,41 @@ bool PlayerController::isFavorite() const
     return favorites.contains(tracks.getTrack(current));
 }
 
-string PlayerController::songTitle(int n) const
+
+int PlayerController::favoriteCount() const
+{
+    return favorites.count();
+}
+
+std::string PlayerController::favorite(int n) const
+{
+    return favorites.get(n);
+}
+
+std::string PlayerController::favoriteTitle(int n) const
+{
+    return fs::path(favorites.get(n)).stem().string();
+}
+
+
+int PlayerController::recentCount() const
+{
+    return recent.count();
+}
+
+std::string PlayerController::recentSong(int n) const
+{
+    return recent.get(n);
+}
+
+std::string PlayerController::recentTitle(int n) const
+{
+    return fs::path(recent.get(n)).stem().string();
+}
+
+
+// The song name without the folder and without ".mp3".
+std::string PlayerController::songTitle(int n) const
 {
     return fs::path(tracks.getTrack(n)).stem().string();
 }
@@ -220,32 +267,47 @@ double PlayerController::duration() const
     return audio.duration();
 }
 
-int PlayerController::favoriteCount() const
-{
-    return favorites.count();
-}
-
-std::string PlayerController::favorite(int n) const
-{
-    return favorites.get(n);
-}
-
-string PlayerController::songName() const
+std::string PlayerController::songName() const
 {
     return trackName;
 }
 
-string PlayerController::lastError() const
+std::string PlayerController::lastError() const
 {
     return errorText;
 }
 
-int PlayerController::recentCount() const
+// Playlists
+bool PlayerController::createPlaylist(const std::string& name)
 {
-    return recent.count();
+    return playlists.create(name);
 }
 
-std::string PlayerController::recentSong(int n) const
+int PlayerController::playlistCount() const
 {
-    return recent.get(n);
+    return playlists.count();
+}
+
+std::string PlayerController::playlistName(int n) const
+{
+    return playlists.getName(n);
+}
+
+// Puts the song that is playing now into the playlist.
+bool PlayerController::addCurrentToPlaylist(const std::string& name)
+{
+    if (current == 0)
+        return false;
+
+    return playlists.addSong(name, tracks.getTrack(current));
+}
+
+int PlayerController::playlistSongCount(const std::string& name) const
+{
+    return playlists.songCount(name);
+}
+
+std::string PlayerController::playlistSongTitle(const std::string& name, int n) const
+{
+    return fs::path(playlists.getSong(name, n)).stem().string();
 }

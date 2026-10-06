@@ -17,4 +17,7 @@ public:
 
     // The address of song number n (the first song is number 1)
     std::string getTrack(int n) const;
+
+    // The folder we scanned (for the Storage screen)
+    std::string getFolder() const;
 };
