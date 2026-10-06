@@ -1,0 +1,34 @@
+import { LibraryPage } from "../components/library-page.slint";
+import { SongInfo } from "../components/song-row.slint";
+import { Format } from "../format.slint";
+
+//all songs page. shows every song found in the music folders
+export component SongsView inherits Rectangle {
+    in property <[SongInfo]> songs;
+    in property <float> total-seconds;
+    callback song-clicked(int);
+    callback play-clicked();
+    callback shuffle-clicked();
+    callback search-edited(string);
+    callback sort-changed(int);
+    callback add-folder();             //the "add a new folder" link in the empty state
+
+    LibraryPage {
+        page-title: "All Songs";
+        name: "Songs";
+        subtitle: Format.songs(root.songs.length, root.total-seconds);
+        header-icon: @image-url("../icons/music.svg");
+        search-placeholder: "Search All Music";
+        length-label: "Time";
+        songs: root.songs;
+        empty-text: "No songs found. Go to settings to ";
+        empty-link: "add a new folder";
+
+        song-clicked(i) => { root.song-clicked(i); }
+        play-clicked => { root.play-clicked(); }
+        shuffle-clicked => { root.shuffle-clicked(); }
+        search-edited(t) => { root.search-edited(t); }
+        sort-changed(i) => { root.sort-changed(i); }
+        empty-link-clicked => { root.add-folder(); }
+    }
+}

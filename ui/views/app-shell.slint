@@ -1,5 +1,5 @@
 //main screen after login is successful
-//This file only connects the components to AppState, there is no data or logic in here.
+//this file only connects the components to AppState, there is no data or logic in here.
 import { Theme } from "../theme.slint";
 import { AppState } from "../state.slint";
 import { PlayerBar } from "../components/player-bar.slint";
@@ -7,6 +7,10 @@ import { SideNav, NavSection } from "../components/side-nav.slint";
 import { TopBar } from "../components/top-bar.slint";
 import { MockBackend } from "../components/mock-backend.slint";
 import { HomeView } from "home-view.slint";
+import { SongsView } from "songs-view.slint";
+import { FavoritesView } from "favorites-view.slint";
+import { RecordingsView } from "recordings-view.slint";
+import { PlaylistView } from "playlist-view.slint";
 
 export component AppShell inherits Rectangle {
     background: Theme.primary;
@@ -52,6 +56,61 @@ export component AppShell inherits Rectangle {
 
                 show-all(which) => { AppState.show-all(which); }
                 track-clicked(t) => { AppState.track-clicked(t); }
+            }
+
+            //all songs view
+            if AppState.section == NavSection.songs && AppState.selected-playlist < 0 : SongsView {
+                songs: AppState.songs;
+                total-seconds: AppState.songs-seconds;
+
+                song-clicked(i) => { AppState.song-clicked("songs", i); }
+                play-clicked => { AppState.play-list("songs"); }
+                shuffle-clicked => { AppState.shuffle-list("songs"); }
+                search-edited(t) => { AppState.list-search-changed("songs", t); }
+                sort-changed(i) => { AppState.list-sort-changed("songs", i); }
+                add-folder => { AppState.add-folder(); }
+            }
+
+            //favorites view
+            if AppState.section == NavSection.favorites && AppState.selected-playlist < 0 : FavoritesView {
+                songs: AppState.favorites;
+                total-seconds: AppState.favorites-seconds;
+
+                song-clicked(i) => { AppState.song-clicked("favorites", i); }
+                play-clicked => { AppState.play-list("favorites"); }
+                shuffle-clicked => { AppState.shuffle-list("favorites"); }
+                search-edited(t) => { AppState.list-search-changed("favorites", t); }
+                sort-changed(i) => { AppState.list-sort-changed("favorites", i); }
+            }
+
+            //recordings view
+            if AppState.section == NavSection.recordings && AppState.selected-playlist < 0 : RecordingsView {
+                recordings: AppState.recordings;
+
+                song-clicked(i) => { AppState.song-clicked("recordings", i); }
+                start-recording => { AppState.start-recording(); }
+                search-edited(t) => { AppState.list-search-changed("recordings", t); }
+                sort-changed(i) => { AppState.list-sort-changed("recordings", i); }
+            }
+
+            //playlist view, opened from the sidebar
+            if AppState.selected-playlist >= 0 : PlaylistView {
+                title: AppState.playlists[AppState.selected-playlist].title;
+                art: AppState.playlists[AppState.selected-playlist].art;
+                songs: AppState.playlist-songs;
+                total-seconds: AppState.playlist-seconds;
+
+                song-clicked(i) => { AppState.song-clicked("playlist", i); }
+                play-clicked => { AppState.play-list("playlist"); }
+                shuffle-clicked => { AppState.shuffle-list("playlist"); }
+                search-edited(t) => { AppState.list-search-changed("playlist", t); }
+                edit-art-clicked => { AppState.edit-playlist-art(AppState.selected-playlist); }
+                sort-changed(i) => { AppState.list-sort-changed("playlist", i); }
+                browse-songs => {
+                    AppState.selected-playlist = -1;
+                    AppState.section = NavSection.songs;
+                    AppState.section-changed(NavSection.songs);
+                }
             }
         }
 
