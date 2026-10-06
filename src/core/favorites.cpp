@@ -2,7 +2,7 @@
 #include <fstream>
 #include <string>
 
-static const char* FAVORITES_FILE = "Favorites";
+static const char* FAVORITES_FILE = "favorite-index.dat";
 
 bool Favorite::contains(const std::string& path) const {
     std::ifstream File(FAVORITES_FILE); // Opens the file automatically

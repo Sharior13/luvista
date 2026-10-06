@@ -2,26 +2,17 @@
 #include <string>
 #include "../audio/audioBackend.h"
 #include "trackList.h"
-
-// THE DJ (all the rules live here)
-//
-// The screen only says "next!" or "volume up!".
-// The DJ decides what that means, then tells the speaker what to do.
-//
-// The DJ does NOT make sound (the speaker does)
-// The DJ does NOT find songs   (the librarian does)
-// The DJ does NOT draw or read keys (the screen does)
+#include "favorites.h"
+#include "recentList.h"
+#include "playlist.h"            
 
 class PlayerController {
 private:
     AudioBackend& audio;    // the speaker (the & means "the real one, not a copy")
     TrackList& tracks;      // the librarian
-
-    int current;            // song playing now (0 = nothing started yet)
-    bool paused;            // true after we press pause
-    int volumePercent;      // 0 to 100
-    std::string trackName;  // name of the song playing now
-    std::string errorText;  // what went wrong ("" = nothing)
+    Favorite favorites;     // the favorites notebook
+    RecentList recent;      // the recently played notebook
+    Playlists playlists;        
 
     void playTrack(int n);  // private: only the DJ uses this inside
 
@@ -34,6 +25,7 @@ public:
     // Song buttons
     void next();
     void previous();
+    void playSong(int n);     // play song number n (for clicking a song in a list)
 
     // Play buttons
     void pause();
@@ -46,6 +38,31 @@ public:
     // Volume buttons
     void volumeUp();
     void volumeDown();
+
+    // Favorites
+    void toggleFavorite();
+    bool isFavorite() const;
+    int favoriteCount() const;
+    std::string favorite(int n) const;        // full address
+    std::string favoriteTitle(int n) const;   // just the song name
+
+    // Recent
+    int recentCount() const;
+    std::string recentSong(int n) const;      // full address
+    std::string recentTitle(int n) const;     // just the song name
+
+    // Playlists            
+    bool createPlaylist(const std::string& name);
+    int playlistCount() const;
+    std::string playlistName(int n) const;
+    bool addCurrentToPlaylist(const std::string& name);
+    int playlistSongCount(const std::string& name) const;
+    std::string playlistSongTitle(const std::string& name, int n) const;
+    int current;            // song playing now (0 = nothing started yet)
+    bool paused;            // true after we press pause
+    int volumePercent;      // 0 to 100
+    std::string trackName;  // name of the song playing now
+    std::string errorText;  // what went wrong ("" = nothing)
 
     // Questions the screen can ask ("const" = only looks, changes nothing)
     int volume() const;
