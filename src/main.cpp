@@ -1,5 +1,4 @@
 #include <string>
-#include "app.h"
 #include "audio/miniaudioBackend.h"
 #include "core/trackList.h"
 #include "core/playerController.h"
@@ -12,11 +11,9 @@ int main()
     MiniaudioBackend audio;                  
     TrackList tracks;                        
     PlayerController player(audio, tracks);  
-    ConsoleUI ui(player);                    
-
-     auto ui = AppWindow::create();
-     ui->run();
-
-    //ui.run(MUSIC_FOLDER);
+    ConsoleUI ui(player);
+    ui.run(MUSIC_FOLDER);                   
+     /*auto ui = AppWindow::create();
+     ui->run();*/
     return 0;
 }

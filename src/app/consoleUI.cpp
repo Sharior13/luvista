@@ -11,6 +11,17 @@ ConsoleUI::ConsoleUI(PlayerController& p) : player(p)
 {
 }
 
+// Asks for search words. Empty answer = no filter (show everything).
+std::string ConsoleUI::askSearch()
+{
+    std::cout << "Search (empty = show all): ";
+
+    std::string query;
+    std::getline(std::cin, query);
+    return query;
+}
+
+
 // Clears the screen and draws everything again.
 void ConsoleUI::draw(const std::string& message)
 {
@@ -33,12 +44,14 @@ void ConsoleUI::draw(const std::string& message)
         << "[V] Previous song\n"
         << "[P] Pause\n"
         << "[R] Resume / Play\n"
+        << "[Space] Pause / Play (one button)\n"
         << "[S] ReStart\n"
         << "[F] Forward 10s\n"
         << "[B] Back 10s\n"
         << "[+] Volume Up\n"
         << "[-] Volume Down\n"
         << "[L] Favorite on / off\n"
+        << "[G] Search all songs\n"
         << "[A] Show Favorites\n"
         << "[Q] Recently played\n"
         << "[C] Create playlist\n"
@@ -64,17 +77,36 @@ void ConsoleUI::showFavorites()
 
     std::cout << "\n========== FAVORITES ==========\n\n";
 
-    int count = player.favoriteCount();
+    if (player.favoriteCount() == 0) {
+        std::cout << "No favorite songs.\n\nPress any key to return...";
+        _getch();
+        return;
+    }
 
-    if (count == 0) {
-        std::cout << "No favorite songs.\n";
+    std::string query = askSearch();
+
+    system("cls");
+    std::cout << "\n========== FAVORITES ==========\n";
+
+    if (query != "")
+        std::cout << "Search: " << query << "\n";
+
+    std::cout << "\n";
+
+    int shown = 0;
+
+    for (int n = 1; ; n++) {
+        int row = player.findFavorite(query, n);
+
+        if (row == 0)
+            break;
+
+        std::cout << "[" << n << "] " << player.favoriteTitle(row) << "\n";
+        shown++;
     }
-    else {
-        for (int i = 1; i <= count; i++) {
-            std::cout << "[" << i << "] "
-                << player.favoriteTitle(i) << "\n";
-        }
-    }
+
+    if (shown == 0)
+        std::cout << "No songs match.\n";
 
     std::cout << "\nPress any key to return...";
     _getch();
@@ -88,17 +120,36 @@ void ConsoleUI::showRecent()
 
     std::cout << "\n========== RECENTLY PLAYED ==========\n\n";
 
-    int recentCount = player.recentCount();
+    if (player.recentCount() == 0) {
+        std::cout << "No recently played songs.\n\nPress any key to return...";
+        _getch();
+        return;
+    }
 
-    if (recentCount == 0) {
-        std::cout << "No recently played songs.\n";
+    std::string query = askSearch();
+
+    system("cls");
+    std::cout << "\n========== RECENTLY PLAYED ==========\n";
+
+    if (query != "")
+        std::cout << "Search: " << query << "\n";
+
+    std::cout << "\n";
+
+    int shown = 0;
+
+    for (int n = 1; ; n++) {
+        int row = player.findRecent(query, n);
+
+        if (row == 0)
+            break;
+
+        std::cout << "[" << n << "] " << player.recentTitle(row) << "\n";
+        shown++;
     }
-    else {
-        for (int i = 1; i <= recentCount; i++) {
-            std::cout << "[" << i << "] "
-                << player.recentTitle(i) << "\n";
-        }
-    }
+
+    if (shown == 0)
+        std::cout << "No songs match.\n";
 
     std::cout << "\nPress any key to return...";
     _getch();
@@ -170,6 +221,46 @@ std::string ConsoleUI::addToPlaylistScreen()
 }
 
 
+// Searches every song. Pick a number from the results to play it.
+std::string ConsoleUI::searchSongsScreen()
+{
+    system("cls");
+
+    std::cout << "\n========== SEARCH SONGS ==========\n\n";
+
+    std::string query = askSearch();
+
+    if (query == "")
+        return "Cancelled";
+
+    std::cout << "\n";
+
+    int shown = 0;
+
+    for (int n = 1; ; n++) {
+        int song = player.findSong(query, n);
+
+        if (song == 0)
+            break;
+
+        std::cout << "[" << n << "] " << player.songTitle(song) << "\n";
+        shown++;
+    }
+
+    if (shown == 0)
+        return "No songs match: " + query;
+
+    std::cout << "\nPlay a number (0 = cancel): ";
+    int pick = readNumber();
+
+    if (pick < 1 || pick > shown)
+        return "Cancelled";
+
+    player.playSong(player.findSong(query, pick));
+    return "Playing";
+}
+
+
 // Shows all playlists. Pick one to see its songs.
 void ConsoleUI::showPlaylists()
 {
@@ -203,17 +294,37 @@ void ConsoleUI::showPlaylists()
         system("cls");
         std::cout << "\n========== " << name << " ==========\n\n";
 
-        int songs = player.playlistSongCount(name);
+        if (player.playlistSongCount(name) == 0) {
+            std::cout << "No songs in this playlist.\n\nPress any key to go back...";
+            _getch();
+            continue;
+        }
 
-        if (songs == 0) {
-            std::cout << "No songs in this playlist.\n";
+        std::string query = askSearch();
+
+        system("cls");
+        std::cout << "\n========== " << name << " ==========\n";
+
+        if (query != "")
+            std::cout << "Search: " << query << "\n";
+
+        std::cout << "\n";
+
+        int shown = 0;
+
+        for (int n = 1; ; n++) {
+            int row = player.findInPlaylist(name, query, n);
+
+            if (row == 0)
+                break;
+
+            std::cout << "[" << n << "] "
+                << player.playlistSongTitle(name, row) << "\n";
+            shown++;
         }
-        else {
-            for (int i = 1; i <= songs; i++) {
-                std::cout << "[" << i << "] "
-                    << player.playlistSongTitle(name, i) << "\n";
-            }
-        }
+
+        if (shown == 0)
+            std::cout << "No songs match.\n";
 
         std::cout << "\nPress any key to go back...";
         _getch();
@@ -262,6 +373,11 @@ void ConsoleUI::run(const std::string& folder)
                 message = "Playing";
                 break;
 
+            case ' ':
+                player.togglePlay();
+                message = player.isPaused() ? "Paused" : "Playing";
+                break;
+
             case 'S':
                 player.restart();
                 message = "Restarted";
@@ -291,6 +407,10 @@ void ConsoleUI::run(const std::string& folder)
             case 'L':
                 player.toggleFavorite();
                 message = "Favorite changed";
+                break;
+
+            case 'G':
+                message = searchSongsScreen();
                 break;
 
             case 'A':

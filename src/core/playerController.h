@@ -4,67 +4,71 @@
 #include "trackList.h"
 #include "favorites.h"
 #include "recentList.h"
-#include "playlist.h"            
+#include "playlist.h"
 
 class PlayerController {
 private:
-    AudioBackend& audio;    // the speaker (the & means "the real one, not a copy")
-    TrackList& tracks;      // the librarian
-    Favorite favorites;     // the favorites notebook
-    RecentList recent;      // the recently played notebook
-    Playlists playlists;        
+    AudioBackend& audio;
+    TrackList& tracks;
+    Favorite favorites;
+    RecentList recent;
+    Playlists playlists;
 
-    void playTrack(int n);  // private: only the DJ uses this inside
+    int current;
+    bool paused;
+    int volumePercent;
+    std::string trackName;
+    std::string errorText;
+
+    void playTrack(int n, int step);
 
 public:
     PlayerController(AudioBackend& a, TrackList& t);
 
-    // Ask the librarian to look in the folder. True if songs were found.
     bool openFolder(const std::string& folder);
 
-    // Song buttons
     void next();
     void previous();
-    void playSong(int n);     // play song number n (for clicking a song in a list)
+    void playSong(int n);
 
-    // Play buttons
     void pause();
     void resume();
+    void togglePlay();                  // NEW: one button for pause and resume
     void restart();
     void forward(double seconds = 10);
     void back(double seconds = 10);
-    void update();            // call again and again: starts the next song when one ends
+    void seekTo(double seconds);        // NEW: for the seek bar
+    void update();
 
-    // Volume buttons
     void volumeUp();
     void volumeDown();
+    void setVolume(int percent);        // NEW: for the volume slider
 
-    // Favorites
     void toggleFavorite();
     bool isFavorite() const;
     int favoriteCount() const;
-    std::string favorite(int n) const;        // full address
-    std::string favoriteTitle(int n) const;   // just the song name
+    std::string favorite(int n) const;
+    std::string favoriteTitle(int n) const;
 
-    // Recent
     int recentCount() const;
-    std::string recentSong(int n) const;      // full address
-    std::string recentTitle(int n) const;     // just the song name
+    std::string recentSong(int n) const;
+    std::string recentTitle(int n) const;
 
-    // Playlists            
     bool createPlaylist(const std::string& name);
     int playlistCount() const;
     std::string playlistName(int n) const;
     bool addCurrentToPlaylist(const std::string& name);
+    bool addToPlaylist(const std::string& name, int songNumber);   // NEW: the "+" on a row
     int playlistSongCount(const std::string& name) const;
     std::string playlistSongTitle(const std::string& name, int n) const;
-    int current;            // song playing now (0 = nothing started yet)
-    bool paused;            // true after we press pause
-    int volumePercent;      // 0 to 100
-    std::string trackName;  // name of the song playing now
-    std::string errorText;  // what went wrong ("" = nothing)
 
-    // Questions the screen can ask ("const" = only looks, changes nothing)
+    // Search. Each one gives the position of the nth match (first match is 1),
+    // or 0 when there are fewer than n matches. An empty query matches everything.
+    int findSong(const std::string& query, int nth) const;        // a song number (all songs)
+    int findFavorite(const std::string& query, int nth) const;    // a row in favorites
+    int findRecent(const std::string& query, int nth) const;      // a row in recently played
+    int findInPlaylist(const std::string& name, const std::string& query, int nth) const;   // a row in a playlist
+
     int volume() const;
     bool isPaused() const;
     int currentIndex() const;
@@ -74,4 +78,6 @@ public:
     std::string songName() const;
     std::string lastError() const;
     std::string songTitle(int n) const;
+    std::string nextSongTitle() const;          // NEW: "Next in queue" card
+    long long songAdded(int n) const;           // NEW: "Date added" column
 };
