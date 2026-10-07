@@ -1,0 +1,51 @@
+export global Theme {
+    //add option to switch themes, managed by cpp??
+
+    //colors
+    out property <color> background: #5c3f97;
+    out property <color> primary: #422c6e;
+    out property <color> text-primary: #ffffff;
+    out property <color> accent: #f1eaff;
+
+    //player bar
+    out property <color> text-muted: #8b7a9e;
+    out property <color> icon-dim: #f1eaff;
+    out property <color> bar-border: #7a62b3;
+    out property <color> seek-track: #ffffff;
+    out property <color> pink: #f7b9d4;
+    out property <color> coral: #ff7b72;
+    //player bar: cover placeholder, play button, sliders
+    out property <color> pink-deep: #f08fb6;
+    out property <color> coral-light: #f7a4b4;
+    out property <color> cover-start: #ff9cc2;
+    out property <color> cover-end: #ff4fa3;
+    out property <color> play-button: #f4f0fa;
+    out property <color> play-button-hover: #ffffff;
+    out property <color> shadow: #00000066;
+    out property <brush> slider-fill: @linear-gradient(90deg, Theme.coral-light 0%, Theme.coral 100%);
+
+    //layout
+    out property <length> nav-icon-size: 22px;
+    out property <length> sidebar-width: 212px;
+    out property <length> sidebar-compact: 68px;
+    out property <length> player-bar-height: 120px;
+    out property <color> nav-hover: #ffffff14;
+    out property <duration> anim-fast: 150ms;
+    out property <color> divider: #ffffff70;
+    out property <color> playlist-art-start: #7b68ee;
+    out property <color> playlist-art-end: #4fc3f7;
+
+    //home page cards and scrollbar
+    out property <length> card-width: 170px;
+    out property <length> card-height: 224px;
+    out property <color> art-warm-start: #ffb86b;
+    out property <color> art-warm-end: #ff6f91;
+    out property <color> scrollbar-thumb: #ffffff40;
+    out property <color> scrollbar-thumb-hover: #ffffff70;
+
+    //top bar
+    out property <length> top-bar-height: 56px;
+    out property <length> top-bar-margin: 8px;
+    out property <length> bp-search: 600px;            //below this bar width the search turns into a popup
+    out property <length> search-max-width: 420px;
+}

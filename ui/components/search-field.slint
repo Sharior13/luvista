@@ -1,0 +1,90 @@
+import { Theme } from "../theme.slint";
+
+//pill shaped search box: magnifier, text input with placeholder, and a clear button
+export component SearchField inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder: "What do you want to play?";
+    callback edited(string);
+    callback accepted(string);
+
+    //true = put the cursor in the box as soon as it appears (used inside the popup)
+    in property <bool> autofocus: false;
+    init => {
+        if (root.autofocus) { input.focus(); }
+    }
+
+    height: 40px;
+    border-radius: self.height / 2;
+    background: Theme.nav-hover;
+    border-width: 1px;
+    border-color: input.has-focus ? Theme.accent : Theme.divider;
+    animate border-color { duration: Theme.anim-fast; }
+
+    //clicking the icon or empty space also focuses the input
+    TouchArea {
+        mouse-cursor: MouseCursor.text;
+        clicked => { input.focus(); }
+    }
+
+    Image {
+        source: @image-url("../icons/search.svg");
+        colorize: Theme.text-muted;
+        width: 18px;
+        height: 18px;
+        x: 14px;
+        y: (parent.height - self.height) / 2;
+    }
+
+    input := TextInput {
+        x: 42px;
+        width: max(0px, parent.width - 42px - 40px);
+        height: parent.height;
+        single-line: true;
+        color: Theme.text-primary;
+        font-size: 15px;
+        vertical-alignment: center;
+        selection-background-color: Theme.pink;
+        selection-foreground-color: Theme.primary;
+        text <=> root.text;
+        edited => { root.edited(self.text); }
+        accepted => { root.accepted(self.text); }
+    }
+
+    Text {
+        x: 42px;
+        width: max(0px, parent.width - 42px - 40px);
+        height: parent.height;
+        text: root.placeholder;
+        color: Theme.text-muted;
+        font-size: 15px;
+        vertical-alignment: center;
+        overflow: elide;
+        visible: input.text == "";
+    }
+
+    if root.text != "" : Rectangle {
+        x: parent.width - self.width - 8px;
+        y: (parent.height - self.height) / 2;
+        width: 26px;
+        height: 26px;
+        border-radius: self.width / 2;
+        background: clear-touch.has-hover ? Theme.nav-hover : transparent;
+
+        clear-touch := TouchArea {
+            mouse-cursor: MouseCursor.pointer;
+            clicked => {
+                root.text = "";
+                root.edited("");
+                input.focus();
+            }
+        }
+        Image {
+            source: @image-url("../icons/close.svg");
+            colorize: Theme.text-muted;
+            width: 14px;
+            height: 14px;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+        }
+    }
+}

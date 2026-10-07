@@ -1,0 +1,52 @@
+import { Theme } from "../theme.slint";
+
+//round profile button. Shows the picture when there is one,
+//otherwise a gradient with the first letter of the profile name on top.
+export component Avatar inherits Rectangle {
+    in property <string> initial;       //first letter, set by the backend
+    in property <image> picture;        //empty = no picture
+    callback clicked();
+
+    property <bool> has-picture: root.picture.width > 0 && root.picture.height > 0;
+
+    width: 40px;
+    height: 40px;
+    border-radius: self.width / 2;
+    clip: true;
+
+    //only one of these two exists at a time
+    if !root.has-picture : Rectangle {
+        background: @linear-gradient(135deg, Theme.cover-start 0%, Theme.cover-end 100%);
+
+        Text {
+            width: 100%;
+            height: 100%;
+            text: root.initial;
+            color: Theme.text-primary;
+            font-size: 18px;
+            font-weight: 800;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    if root.has-picture : Image {
+        source: root.picture;
+        width: 100%;
+        height: 100%;
+        image-fit: cover;
+    }
+
+    //hover ring
+    Rectangle {
+        border-radius: parent.border-radius;
+        border-width: touch.has-hover ? 2px : 0px;
+        border-color: Theme.accent;
+        animate border-width { duration: Theme.anim-fast; }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.clicked(); }
+    }
+}
