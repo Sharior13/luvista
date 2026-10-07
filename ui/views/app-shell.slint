@@ -1,5 +1,5 @@
 //main screen after login is successful
-//this file only connects the components to AppState, there is no data or logic in here.
+//This file only connects the components to AppState, there is no data or logic in here.
 import { Theme } from "../theme.slint";
 import { AppState } from "../state.slint";
 import { PlayerBar } from "../components/player-bar.slint";
@@ -160,6 +160,14 @@ export component AppShell inherits Rectangle {
         lyrics-clicked => { AppState.lyrics-toggled(AppState.lyrics-open); }
         queue-clicked => { AppState.queue-toggled(AppState.queue-open); }
         add-clicked => { AppState.add-current-track(); }
+
+        playlist-choices: AppState.playlist-choices;
+        saved: AppState.track-saved-in > 0 || AppState.current-favorite;
+        favorited <=> AppState.current-favorite;
+        favorite-toggled(on) => { AppState.favorite-toggled(on); }
+        playlist-toggled(i) => { AppState.playlist-toggled(i); }
+        new-playlist => { AppState.new-playlist-from-track(); }
+        playlist-search(t) => { AppState.playlist-picker-search(t); }
     }
 
     MockBackend {}

@@ -2,6 +2,7 @@ import { TrackInfo } from "components/track-card.slint";
 import { PlaylistInfo } from "components/playlist-item.slint";
 import { SongInfo } from "components/song-row.slint";
 import { ProfileInfo } from "components/login-card.slint";
+import { PlaylistChoice } from "components/add-to-playlist.slint";
 
 //one entry of the fake play queue
 export struct MockTrack {
@@ -40,6 +41,20 @@ export global MockData {
         { title: "Road Trip" },
         { title: "Rainy Day" },
     ];
+
+    //"Add to playlist" popup, playlists that already have the track come first
+    out property <[PlaylistChoice]> playlist-choices: [
+        { title: "Late Night Drive", count: 42, saved: true, checked: true },
+        { title: "Focus Flow", count: 18, saved: true, checked: true },
+        { title: "Morning Run", count: 29 },
+        { title: "Road Trip", count: 57 },
+        { title: "Rainy Day", count: 12 },
+        { title: "Gym Mix", count: 33 },
+        { title: "Sunday Chill", count: 21 },
+        { title: "Throwback Hits", count: 64 },
+    ];
+
+    out property <int> track-saved-in: 2;      //how many of the playlists above already have the track (the saved ones)
 
     //home page
     out property <[TrackInfo]> recent: [

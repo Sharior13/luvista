@@ -1,5 +1,6 @@
 import { Theme } from "../theme.slint";
 import { BarSlider } from "bar-slider.slint";
+import { AddToPlaylistMenu, PlaylistChoice } from "add-to-playlist.slint";
 
 //small icon button, only the icon area is clickable
 component IconButton inherits Rectangle {
@@ -60,6 +61,15 @@ export component PlayerBar inherits Rectangle {
     callback seek(float);              //seconds
     callback volume-changed(float);    //0..1
     callback add-clicked();
+
+    //popup behind the + next to the song title
+    in property <bool> saved;      //the track is in a playlist or favorites: the + turns into a tick
+    in property <[PlaylistChoice]> playlist-choices;
+    in-out property <bool> favorited;
+    callback favorite-toggled(bool);
+    callback playlist-toggled(int);
+    callback new-playlist();
+    callback playlist-search(string);
     callback shuffle-toggled(bool);
     callback repeat-toggled(bool);
 
@@ -158,26 +168,52 @@ export component PlayerBar inherits Rectangle {
                         VerticalLayout {
                             alignment: center;
 
-                            //add to playlist button
+                            //add to playlist button: a fixed 30px slot (click area and popup anchor), the circle inside it shrinks when the track is saved
                             Rectangle {
                                 width: 30px;
                                 height: 30px;
-                                border-radius: self.width / 2;
-                                border-width: 1px;
-                                border-color: Theme.text-muted;
+
+                                //visible circle
+                                Rectangle {
+                                    width: root.saved ? 22px : 30px;
+                                    height: root.saved ? 22px : 30px;
+                                    x: (parent.width - self.width) / 2;
+                                    y: (parent.height - self.height) / 2;
+                                    border-radius: self.width / 2;
+                                    border-width: 1px;
+                                    border-color: root.saved ? Theme.pink : Theme.text-muted;
+                                    background: root.saved ? Theme.pink : transparent;
+                                    animate width, height, x, y, background, border-color { duration: Theme.anim-fast; }
+                                }
 
                                 add-touch := TouchArea {
                                     mouse-cursor: MouseCursor.pointer;
-                                    clicked => { root.add-clicked(); }
+                                    clicked => {
+                                        root.add-clicked();
+                                        add-menu.open();
+                                    }
                                 }
                                 Image {
-                                    source: @image-url("../icons/plus.svg");
-                                    colorize: Theme.icon-dim  ;
+                                    source: root.saved ? @image-url("../icons/check.svg") : @image-url("../icons/plus.svg");
+                                    colorize: root.saved ? Theme.primary : Theme.icon-dim;
                                     width: 16px;
                                     height: 16px;
                                     x: (parent.width - self.width) / 2;
                                     y: (parent.height - self.height) / 2;
                                     opacity: add-touch.has-hover ? 1.0 : 0.85;
+                                    animate width, height { duration: Theme.anim-fast; }
+                                }
+
+                                //opens upwards from the + button
+                                add-menu := AddToPlaylistMenu {
+                                    width: parent.width;
+                                    height: parent.height;
+                                    playlists: root.playlist-choices;
+                                    favorited <=> root.favorited;
+                                    favorite-toggled(on) => { root.favorite-toggled(on); }
+                                    playlist-toggled(i) => { root.playlist-toggled(i); }
+                                    new-playlist => { root.new-playlist(); }
+                                    search-edited(t) => { root.playlist-search(t); }
                                 }
                             }
                         }
