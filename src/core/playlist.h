@@ -1,8 +1,8 @@
 #pragma once
 #include <string>
 
-// playlists.txt holds the playlist names.
-// Each playlist has its own file "playlist-<name>.txt" holding song addresses.
+// playlists.dat holds the playlist names.
+// Each playlist has its own file "playlist-<name>.dat" holding song ids.
 class Playlists {
 public:
     // The list of playlists
@@ -12,8 +12,8 @@ public:
     std::string getName(int n) const;            // name of playlist number n (first is 1)
 
     // The songs inside one playlist
-    bool addSong(const std::string& name, const std::string& path);
-    bool hasSong(const std::string& name, const std::string& path) const;
+    bool addSong(const std::string& name, int id);
+    bool hasSong(const std::string& name, int id) const;
     int songCount(const std::string& name) const;
-    std::string getSong(const std::string& name, int n) const;
+    int getSong(const std::string& name, int n) const;   // song id (0 if no line n)
 };

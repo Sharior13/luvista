@@ -23,44 +23,40 @@ bool PlayerController::openFolder(const std::string& folder)
     return tracks.getCount() > 0;
 }
 
-
-// Plays song number n:
-//   1. get its address from the librarian
-//   2. give the address to the speaker
-//   3. press play
-// If the song cannot be opened, we still move to it, so "next" never gets stuck.
-void PlayerController::playTrack(int n)
+void PlayerController::playTrack(int n, int step)
 {
-    std::string path = tracks.getTrack(n);
+    int songs = tracks.getCount();
 
-    current = n;
-    paused = false;
-    trackName = songTitle(n);
+    for (int tries = 0; tries < songs; tries++) {
+        std::string path = tracks.getTrack(n);
 
-    if (audio.load(path)) {
-        errorText = "";
-        audio.set_volume(volumePercent / 100.0f);
-        audio.play();
+        current = n;
+        paused = false;
+        trackName = songTitle(n);
 
-        recent.add(path);
-    }
-    else {
+        if (audio.load(path)) {
+            errorText = "";
+            audio.set_volume(volumePercent / 100.0f);
+            audio.play();
+            recent.add(tracks.getId(n));     // recent remembers the id, not the path
+            return;
+        }
+
         errorText = audio.last_error();
+        n = (n - 1 + step + songs) % songs + 1;
     }
 }
 
 
-// Plays the song number n (1 = first song). Wrong numbers are ignored.
 void PlayerController::playSong(int n)
 {
     if (n < 1 || n > tracks.getCount())
         return;
 
-    playTrack(n);
+    playTrack(n, 1);
 }
 
 
-// Next song. After the last song it goes back to song 1.
 void PlayerController::next()
 {
     int songs = tracks.getCount();
@@ -68,11 +64,11 @@ void PlayerController::next()
     if (songs == 0)
         return;
 
-    playTrack(current % songs + 1);
+    playTrack(current % songs + 1, 1);
 }
 
-
-// Song before. Before song 1 it jumps to the last song.
+// If the song is more than 3 seconds in, start it again.
+// If it just began, go to the song before.
 void PlayerController::previous()
 {
     int songs = tracks.getCount();
@@ -80,7 +76,15 @@ void PlayerController::previous()
     if (songs == 0)
         return;
 
-    playTrack((current - 2 + songs) % songs + 1);
+    if (current != 0 && audio.position() > 3.0) {
+        restart();
+        return;
+    }
+
+    if (current == 0)
+        playTrack(songs, -1);
+    else
+        playTrack((current - 2 + songs) % songs + 1, -1);
 }
 
 
@@ -97,6 +101,19 @@ void PlayerController::resume()
 {
     audio.play();
     paused = false;
+}
+
+
+// One play/pause button: pauses if playing, plays if paused.
+void PlayerController::togglePlay()
+{
+    if (current == 0)
+        return;
+
+    if (paused)
+        resume();
+    else
+        pause();
 }
 
 
@@ -133,6 +150,19 @@ void PlayerController::back(double seconds)
 }
 
 
+// Jump to any second (the seek bar). Stays inside the song.
+void PlayerController::seekTo(double seconds)
+{
+    if (seconds < 0)
+        seconds = 0;
+
+    if (seconds > audio.duration())
+        seconds = audio.duration();
+
+    audio.seek(seconds);
+}
+
+
 // Checks "is the song finished?". If yes, plays the next one.
 void PlayerController::update()
 {
@@ -141,7 +171,7 @@ void PlayerController::update()
 
     // a song with length 0 failed to open, so we skip this check for it
     bool finished = audio.duration() > 0 &&
-                    audio.position() >= audio.duration() - 0.1;
+        audio.position() >= audio.duration() - 0.1;
 
     if (finished)
         next();
@@ -151,23 +181,27 @@ void PlayerController::update()
 // Volume up by 10, but never above 100.
 void PlayerController::volumeUp()
 {
-    volumePercent += 10;
-
-    if (volumePercent > 100)
-        volumePercent = 100;
-
-    audio.set_volume(volumePercent / 100.0f);
+    setVolume(volumePercent + 10);
 }
 
 
 // Volume down by 10, but never below 0.
 void PlayerController::volumeDown()
 {
-    volumePercent -= 10;
+    setVolume(volumePercent - 10);
+}
 
-    if (volumePercent < 0)
-        volumePercent = 0;
 
+// Sets the volume to any number from 0 to 100 (the volume slider).
+void PlayerController::setVolume(int percent)
+{
+    if (percent > 100)
+        percent = 100;
+
+    if (percent < 0)
+        percent = 0;
+
+    volumePercent = percent;
     audio.set_volume(volumePercent / 100.0f);
 }
 
@@ -178,12 +212,12 @@ void PlayerController::toggleFavorite()
     if (current == 0)
         return;
 
-    std::string path = tracks.getTrack(current);
+    int id = tracks.getId(current);
 
-    if (favorites.contains(path))
-        favorites.remove(path);
+    if (favorites.contains(id))
+        favorites.remove(id);
     else
-        favorites.add(path);
+        favorites.add(id);
 }
 
 
@@ -193,7 +227,7 @@ bool PlayerController::isFavorite() const
     if (current == 0)
         return false;
 
-    return favorites.contains(tracks.getTrack(current));
+    return favorites.contains(tracks.getId(current));
 }
 
 
@@ -202,14 +236,15 @@ int PlayerController::favoriteCount() const
     return favorites.count();
 }
 
+// The file address of favorite number n (the list holds ids, we turn it into a path).
 std::string PlayerController::favorite(int n) const
 {
-    return favorites.get(n);
+    return tracks.getTrack(tracks.positionOfId(favorites.get(n)));
 }
 
 std::string PlayerController::favoriteTitle(int n) const
 {
-    return fs::path(favorites.get(n)).stem().string();
+    return tracks.getTitle(tracks.positionOfId(favorites.get(n)));
 }
 
 
@@ -220,19 +255,111 @@ int PlayerController::recentCount() const
 
 std::string PlayerController::recentSong(int n) const
 {
-    return recent.get(n);
+    return tracks.getTrack(tracks.positionOfId(recent.get(n)));
 }
 
 std::string PlayerController::recentTitle(int n) const
 {
-    return fs::path(recent.get(n)).stem().string();
+    return tracks.getTitle(tracks.positionOfId(recent.get(n)));
 }
 
 
 // The song name without the folder and without ".mp3".
 std::string PlayerController::songTitle(int n) const
 {
-    return fs::path(tracks.getTrack(n)).stem().string();
+    return tracks.getTitle(n);
+}
+
+
+// The name of the song that comes after the one playing now.
+std::string PlayerController::nextSongTitle() const
+{
+    int songs = tracks.getCount();
+
+    if (songs == 0)
+        return "";
+
+    return tracks.getTitle(current % songs + 1);
+}
+
+
+// When song number n was found (seconds since 1970).
+long long PlayerController::songAdded(int n) const
+{
+    return tracks.getAdded(n);
+}
+
+
+// Search
+int PlayerController::findSong(const std::string& query, int nth) const
+{
+    int songs = tracks.getCount();
+    int seen = 0;
+
+    for (int i = 1; i <= songs; i++) {
+        if (tracks.matches(i, query)) {
+            seen++;
+
+            if (seen == nth)
+                return i;
+        }
+    }
+
+    return 0;
+}
+
+
+int PlayerController::findFavorite(const std::string& query, int nth) const
+{
+    int rows = favorites.count();
+    int seen = 0;
+
+    for (int i = 1; i <= rows; i++) {
+        if (tracks.matches(tracks.positionOfId(favorites.get(i)), query)) {
+            seen++;
+
+            if (seen == nth)
+                return i;
+        }
+    }
+
+    return 0;
+}
+
+
+int PlayerController::findRecent(const std::string& query, int nth) const
+{
+    int rows = recent.count();
+    int seen = 0;
+
+    for (int i = 1; i <= rows; i++) {
+        if (tracks.matches(tracks.positionOfId(recent.get(i)), query)) {
+            seen++;
+
+            if (seen == nth)
+                return i;
+        }
+    }
+
+    return 0;
+}
+
+
+int PlayerController::findInPlaylist(const std::string& name, const std::string& query, int nth) const
+{
+    int rows = playlists.songCount(name);
+    int seen = 0;
+
+    for (int i = 1; i <= rows; i++) {
+        if (tracks.matches(tracks.positionOfId(playlists.getSong(name, i)), query)) {
+            seen++;
+
+            if (seen == nth)
+                return i;
+        }
+    }
+
+    return 0;
 }
 
 
@@ -299,7 +426,13 @@ bool PlayerController::addCurrentToPlaylist(const std::string& name)
     if (current == 0)
         return false;
 
-    return playlists.addSong(name, tracks.getTrack(current));
+    return playlists.addSong(name, tracks.getId(current));
+}
+
+// Puts song number n (any row of the table) into the playlist.
+bool PlayerController::addToPlaylist(const std::string& name, int songNumber)
+{
+    return playlists.addSong(name, tracks.getId(songNumber));
 }
 
 int PlayerController::playlistSongCount(const std::string& name) const
@@ -309,5 +442,5 @@ int PlayerController::playlistSongCount(const std::string& name) const
 
 std::string PlayerController::playlistSongTitle(const std::string& name, int n) const
 {
-    return fs::path(playlists.getSong(name, n)).stem().string();
+    return tracks.getTitle(tracks.positionOfId(playlists.getSong(name, n)));
 }

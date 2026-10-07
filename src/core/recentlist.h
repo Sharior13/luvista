@@ -2,11 +2,12 @@
 
 #include <string>
 
+// Recently played songs (newest first). The file holds song ids.
 class RecentList
 {
 public:
-    void add(const std::string& path);
-    bool contains(const std::string& path) const;
+    void add(int id);
+    bool contains(int id) const;
     int count() const;
-    std::string get(int n) const;
+    int get(int n) const;       // the id on line n (0 if there is no line n)
 };

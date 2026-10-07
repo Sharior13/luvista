@@ -90,16 +90,17 @@ void MiniaudioBackend::seek(double seconds)
     if (seconds < 0)
         seconds = 0;
 
-    // the sound is stored as many tiny pieces ("frames") per second,
-    // so we turn seconds into a frame number
-    ma_uint32 framesPerSecond = ma_engine_get_sample_rate(&engine);
-    ma_uint64 frame = (ma_uint64)(seconds * framesPerSecond);
+    ma_uint32 fileRate = 0;
+    ma_sound_get_data_format(&sound, NULL, NULL, &fileRate, NULL, 0);
 
+    if (fileRate == 0)
+        return;
+
+    ma_uint64 frame = (ma_uint64)(seconds * fileRate);
     ma_sound_seek_to_pcm_frame(&sound, frame);
 }
 
 
-// Turns the volume knob. It stays between 0 (silent) and 1 (loudest).
 void MiniaudioBackend::set_volume(float v)
 {
     if (v < 0.0f) v = 0.0f;

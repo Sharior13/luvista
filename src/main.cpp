@@ -11,6 +11,7 @@ int main()
     MiniaudioBackend audio;                  
     TrackList tracks;                        
     PlayerController player(audio, tracks);  
-    ConsoleUI ui(player);                    
+    ConsoleUI ui(player);
+    ui.run(MUSIC_FOLDER);
     return 0;
 }

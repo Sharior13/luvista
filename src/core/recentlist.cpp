@@ -1,17 +1,23 @@
 #include "recentList.h"
+#include "appPaths.h"
 #include <fstream>
 #include <string>
+#include <cstdlib>
 
-static const char* RECENT_FILE = "recent-index.dat";
-
-bool RecentList::contains(const std::string& path) const
+// Where the recent notebook lives
+static std::string recentFile()
 {
-    std::ifstream File(RECENT_FILE);
+    return AppPaths::profileFolder("default") + "/recent.dat";
+}
+
+bool RecentList::contains(int id) const
+{
+    std::ifstream File(recentFile());
     std::string line;
 
     while (std::getline(File, line))
     {
-        if (line == path)
+        if (std::atoi(line.c_str()) == id)
             return true;
     }
 
@@ -21,17 +27,17 @@ bool RecentList::contains(const std::string& path) const
 // Puts the song at the TOP of the list (newest first).
 // If the song was already there, the old copy is dropped.
 // The list never grows past 10 songs.
-void RecentList::add(const std::string& path)
+void RecentList::add(int id)
 {
-    std::string newList = path + "\n";   // newest song goes first
+    std::string newList = std::to_string(id) + "\n";   // newest song goes first
     int kept = 1;
 
-    std::ifstream in(RECENT_FILE);
+    std::ifstream in(recentFile());
     std::string line;
 
     while (kept < 10 && std::getline(in, line))
     {
-        if (line != path)                // skip the old copy of this song
+        if (std::atoi(line.c_str()) != id)             // skip the old copy of this song
         {
             newList += line + "\n";
             kept++;
@@ -39,13 +45,13 @@ void RecentList::add(const std::string& path)
     }
     in.close();                          // finish reading before writing
 
-    std::ofstream out(RECENT_FILE);      // this erases the old file
+    std::ofstream out(recentFile());     // this erases the old file
     out << newList;
 }
 
 int RecentList::count() const
 {
-    std::ifstream File(RECENT_FILE);
+    std::ifstream File(recentFile());
     std::string line;
     int lines = 0;
 
@@ -55,9 +61,9 @@ int RecentList::count() const
     return lines;
 }
 
-std::string RecentList::get(int n) const
+int RecentList::get(int n) const
 {
-    std::ifstream File(RECENT_FILE);
+    std::ifstream File(recentFile());
     std::string line;
     int lineNumber = 0;
 
@@ -66,8 +72,8 @@ std::string RecentList::get(int n) const
         lineNumber++;
 
         if (lineNumber == n)
-            return line;
+            return std::atoi(line.c_str());
     }
 
-    return "";
+    return 0;
 }

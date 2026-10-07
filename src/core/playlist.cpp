@@ -1,21 +1,21 @@
 #include "playlist.h"
+#include "appPaths.h"
 #include <fstream>
 #include <string>
+#include <cstdlib>
 
-static const char* PLAYLISTS_FILE = "playlist-index.dat";
-
-
-// The notebook that belongs to one playlist.
-static std::string fileFor(const std::string& name)
-{
-    return "playlist-" + name + ".txt";
+// The notebook with all playlist names
+static std::string namesFile() {
+    return AppPaths::profileFolder("default") + "/playlists.dat";
 }
 
+// Generate filename
+static std::string fileFor(const std::string& name) {
+    return AppPaths::profileFolder("default") + "/playlist-" + name + ".dat";
+}
 
-// A name is fine if it is not empty and has none of the letters
-// that a file name cannot hold.
-static bool nameIsOk(const std::string& name)
-{
+// Validate name
+static bool nameIsOk(const std::string& name) {
     if (name.empty())
         return false;
 
@@ -28,11 +28,9 @@ static bool nameIsOk(const std::string& name)
     return true;
 }
 
-
-// Is there already a playlist with this name?
-bool Playlists::exists(const std::string& name) const
-{
-    std::ifstream File(PLAYLISTS_FILE);
+// Check playlist
+bool Playlists::exists(const std::string& name) const {
+    std::ifstream File(namesFile());
     std::string line;
 
     while (std::getline(File, line)) {
@@ -42,25 +40,21 @@ bool Playlists::exists(const std::string& name) const
     return false;
 }
 
-
-// Makes a new empty playlist.
-bool Playlists::create(const std::string& name)
-{
+// Create playlist
+bool Playlists::create(const std::string& name) {
     if (!nameIsOk(name) || exists(name))
         return false;
 
-    std::ofstream list(PLAYLISTS_FILE, std::ios::app);   // add the name at the end
+    std::ofstream list(namesFile(), std::ios::app);   // add the name at the end
     list << name << "\n";
 
-    std::ofstream songs(fileFor(name));                  // make its empty notebook
+    std::ofstream songs(fileFor(name));               // make its empty notebook
     return true;
 }
 
-
-// How many playlists there are.
-int Playlists::count() const
-{
-    std::ifstream File(PLAYLISTS_FILE);
+// Count playlists
+int Playlists::count() const {
+    std::ifstream File(namesFile());
     std::string line;
     int lines = 0;
 
@@ -70,11 +64,9 @@ int Playlists::count() const
     return lines;
 }
 
-
-// The name of playlist number n.
-std::string Playlists::getName(int n) const
-{
-    std::ifstream File(PLAYLISTS_FILE);
+// Fetch playlist
+std::string Playlists::getName(int n) const {
+    std::ifstream File(namesFile());
     std::string line;
     int lineNumber = 0;
 
@@ -87,36 +79,30 @@ std::string Playlists::getName(int n) const
     return "";
 }
 
-
-// Is this song already in the playlist?
-bool Playlists::hasSong(const std::string& name, const std::string& path) const
-{
+// Check song
+bool Playlists::hasSong(const std::string& name, int id) const {
     std::ifstream File(fileFor(name));
     std::string line;
 
     while (std::getline(File, line)) {
-        if (line == path)
+        if (std::atoi(line.c_str()) == id)
             return true;
     }
     return false;
 }
 
-
-// Puts a song in the playlist (no copies).
-bool Playlists::addSong(const std::string& name, const std::string& path)
-{
-    if (!exists(name) || hasSong(name, path))
+// Append song
+bool Playlists::addSong(const std::string& name, int id) {
+    if (id == 0 || !exists(name) || hasSong(name, id))
         return false;
 
     std::ofstream File(fileFor(name), std::ios::app);
-    File << path << "\n";
+    File << id << "\n";
     return true;
 }
 
-
-// How many songs are in the playlist.
-int Playlists::songCount(const std::string& name) const
-{
+// Count songs
+int Playlists::songCount(const std::string& name) const {
     std::ifstream File(fileFor(name));
     std::string line;
     int lines = 0;
@@ -127,10 +113,8 @@ int Playlists::songCount(const std::string& name) const
     return lines;
 }
 
-
-// The address of song number n in the playlist.
-std::string Playlists::getSong(const std::string& name, int n) const
-{
+// Get song
+int Playlists::getSong(const std::string& name, int n) const {
     std::ifstream File(fileFor(name));
     std::string line;
     int lineNumber = 0;
@@ -139,8 +123,7 @@ std::string Playlists::getSong(const std::string& name, int n) const
         lineNumber++;
 
         if (lineNumber == n)
-            return line;
+            return std::atoi(line.c_str());
     }
-    return "";
+    return 0;
 }
-

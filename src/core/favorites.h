@@ -1,12 +1,13 @@
 #pragma once
-#include<string>
+#include <string>
 
+// Favorite songs. The file holds song ids, one per line.
 class Favorite {
 public:
-	bool contains(const std::string& path) const;
-	void add(const std::string& path);
-	void remove(const std::string& path);
+    bool contains(int id) const;
+    void add(int id);
+    void remove(int id);
 
-	int count() const;
-	std::string	get(int n) const;
+    int count() const;
+    int get(int n) const;       // the id on line n (0 if there is no line n)
 };
