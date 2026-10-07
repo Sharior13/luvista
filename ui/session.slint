@@ -1,10 +1,22 @@
+import { MockData } from "mock-data.slint";
+import { ProfileInfo } from "components/login-card.slint";
+
 //login/session state
 export global Session {
-    in property <bool> logged-in;
+    in-out property <bool> logged-in;
     in property <bool> busy;
     in property <string> error;
+    in-out property <[ProfileInfo]> profiles: MockData.enabled ? MockData.profiles : [];
 
 	//functions to connect with cpp
     callback login(string, string);
     callback logout();
+    callback select-profile(int);        //index into profiles
+    callback add-profile();              //the "Add Profile" card
+    callback continue-as-guest();        //the "Guest Mode" card
+
+    //mock behaviour, replaced when the backend registers its own handler
+    select-profile(i) => { if (MockData.enabled) { logged-in = true; } }
+    continue-as-guest => { if (MockData.enabled) { logged-in = true; } }
+    logout => { if (MockData.enabled) { logged-in = false; } }
 }

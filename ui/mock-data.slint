@@ -1,6 +1,9 @@
 import { TrackInfo } from "components/track-card.slint";
 import { PlaylistInfo } from "components/playlist-item.slint";
 import { SongInfo } from "components/song-row.slint";
+import { ProfileInfo } from "components/login-card.slint";
+import { PlaylistChoice } from "components/add-to-playlist.slint";
+import { LyricLine } from "components/lyrics-panel.slint";
 
 //one entry of the fake play queue
 export struct MockTrack {
@@ -20,6 +23,13 @@ export global MockData {
     //profile
     out property <string> profile-initial: "A";     //first letter of the profile name
 
+    //saved profiles on the login screen (no picture = gradient with the profile icon)
+    out property <[ProfileInfo]> profiles: [
+        { name: "Alex Morgan" },
+        { name: "Jamie Rivera" },
+        { name: "Sam Okafor" },
+    ];
+
     //library
     out property <int> songs-count: 128;
     out property <int> favorites-count: 24;
@@ -32,6 +42,20 @@ export global MockData {
         { title: "Road Trip" },
         { title: "Rainy Day" },
     ];
+
+    //"Add to playlist" popup, playlists that already have the track come first
+    out property <[PlaylistChoice]> playlist-choices: [
+        { title: "Late Night Drive", count: 42, saved: true, checked: true },
+        { title: "Focus Flow", count: 18, saved: true, checked: true },
+        { title: "Morning Run", count: 29 },
+        { title: "Road Trip", count: 57 },
+        { title: "Rainy Day", count: 12 },
+        { title: "Gym Mix", count: 33 },
+        { title: "Sunday Chill", count: 21 },
+        { title: "Throwback Hits", count: 64 },
+    ];
+
+    out property <int> track-saved-in: 2;      //how many of the playlists above already have the track (the saved ones)
 
     //home page
     out property <[TrackInfo]> recent: [
@@ -102,6 +126,48 @@ export global MockData {
         { title: "Northbound", artist: "The Quiet Fields", duration: 242 },
         { title: "Glass Hours", artist: "Ines Alder", duration: 203 },
         { title: "Low Orbit", artist: "Juno Park", duration: 171 },
+        { title: "Neon Letters", artist: "Juno Park", duration: 198 },
+        { title: "Salt & Pepper", artist: "Hollis & Reed", duration: 176 },
+        { title: "Afterglow Drive", artist: "Ines Alder", duration: 221 },
+    ];
+
+    //lyrics popup, made up for the first track (about 13 seconds per line)
+    out property <[LyricLine]> lyrics: [
+        { time: 6, text: "The streetlights hum a quiet tune" },
+        { time: 19, text: "Along the road we used to know" },
+        { time: 32, text: "The tide is pulling at the moon" },
+        { time: 45, text: "And I am walking slow" },
+        { time: 58, text: "♪" },
+        { time: 71, text: "Leave the window open wide" },
+        { time: 84, text: "Let the salt air through" },
+        { time: 97, text: "Every mile I'm leaving behind" },
+        { time: 110, text: "Is a mile that leads to you" },
+        { time: 123, text: "Slow tide, take me home" },
+        { time: 136, text: "Carry me past the lights" },
+        { time: 149, text: "Slow tide, take me home" },
+        { time: 162, text: "Where the morning meets the night" },
+        { time: 175, text: "♪" },
+    ];
+    //line being sung at the current position, -1 before the first line (keep the times in sync with lyrics above)
+    out property <int> lyric-index: position >= 175 ? 13 : position >= 162 ? 12 : position >= 149 ? 11 : position >= 136 ? 10 : position >= 123 ? 9 : position >= 110 ? 8 : position >= 97 ? 7 : position >= 84 ? 6 : position >= 71 ? 5 : position >= 58 ? 4 : position >= 45 ? 3 : position >= 32 ? 2 : position >= 19 ? 1 : position >= 6 ? 0 : -1;
+
+    //the queue panel shows the same tracks as the fake player above (keep the order in sync)
+    out property <string> queue-context: "Late Night Drive";
+    out property <[SongInfo]> queue-songs: [
+        { title: "Slow Tide Home", artist: "Marlo Vey" },
+        { title: "Paper Lanterns", artist: "Hollis & Reed" },
+        { title: "Northbound", artist: "The Quiet Fields" },
+        { title: "Glass Hours", artist: "Ines Alder" },
+        { title: "Low Orbit", artist: "Juno Park" },
+        { title: "Neon Letters", artist: "Juno Park" },
+        { title: "Salt & Pepper", artist: "Hollis & Reed" },
+        { title: "Afterglow Drive", artist: "Ines Alder" },
+    ];
+    out property <[SongInfo]> recently-played: [
+        { title: "Evergreen", artist: "Hollis & Reed" },
+        { title: "Soft Static", artist: "Marlo Vey" },
+        { title: "Tidal Hours", artist: "Marlo Vey" },
+        { title: "Long Way Round", artist: "The Quiet Fields" },
     ];
 
     in-out property <int> index: 0;

@@ -3,9 +3,11 @@ import { TrackInfo } from "components/track-card.slint";
 import { PlaylistInfo } from "components/playlist-item.slint";
 import { NavSection } from "components/side-nav.slint";
 import { SongInfo } from "components/song-row.slint";
+import { PlaylistChoice } from "components/add-to-playlist.slint";
+import { LyricLine } from "components/lyrics-panel.slint";
 
 //re-exported so app.slint can hand them to the C++ side
-export { TrackInfo, PlaylistInfo, NavSection, SongInfo }
+export { TrackInfo, PlaylistInfo, NavSection, SongInfo, PlaylistChoice, LyricLine }
 
 //AppState is the single connection point between the UI and the C++ backend.
 //no other .slint file needs to be touched to connect the backend.
@@ -40,12 +42,28 @@ export global AppState {
     in-out property <int> recordings-count: MockData.enabled ? MockData.recordings-count : 0;
     in-out property <[PlaylistInfo]> playlists: MockData.enabled ? MockData.playlists : [];
 
-    // home page lists 
+    //"Add to playlist" popup
+    //playlists the current track can go into, those it is already in (saved: true) first
+    in-out property <[PlaylistChoice]> playlist-choices: MockData.enabled ? MockData.playlist-choices : [];
+    in-out property <bool> current-favorite;           //is the playing track a favorite
+    in-out property <int> track-saved-in: MockData.enabled ? MockData.track-saved-in : 0;   //in how many playlists the playing track is, the + turns into a tick when this or current-favorite is set
+
+    //lyrics popup (lyrics button in the player bar)
+    in-out property <[LyricLine]> lyrics: MockData.enabled ? MockData.lyrics : [];     //lyrics of the playing song, empty = "No lyrics"
+    in-out property <int> lyric-index: MockData.enabled ? MockData.lyric-index : -1;   //line being sung now, the backend moves it as the song plays, -1 = none yet
+
+    //queue panel (queue button in the player bar)
+    in-out property <[SongInfo]> queue-tracks: MockData.enabled ? MockData.queue-songs : [];       //whole queue in play order, the playing track included
+    in-out property <int> queue-index: MockData.enabled ? MockData.index : 0;                     //position of the playing track in queue-tracks
+    in-out property <string> queue-context: MockData.enabled ? MockData.queue-context : "";       //"Next from: ...", empty = just "Next up"
+    in-out property <[SongInfo]> recently-played: MockData.enabled ? MockData.recently-played : [];   //newest first
+
+    //home page lists
     in-out property <[TrackInfo]> recent: MockData.enabled && MockData.home-feed ? MockData.recent : [];
     in-out property <[TrackInfo]> most-played: MockData.enabled && MockData.home-feed ? MockData.most-played : [];
     in-out property <[TrackInfo]> recently-added: MockData.enabled && MockData.home-feed ? MockData.recently-added : [];
 
-    //library pages 
+    //library pages
     in-out property <[SongInfo]> songs: MockData.enabled && MockData.library-feed ? MockData.songs : [];
     in-out property <float> songs-seconds: MockData.enabled && MockData.library-feed ? MockData.songs-seconds : 0;
     in-out property <[SongInfo]> favorites: MockData.enabled && MockData.library-feed ? MockData.favorites : [];
@@ -65,9 +83,15 @@ export global AppState {
     callback repeat-toggled(bool);
     callback lyrics-toggled(bool);
     callback queue-toggled(bool);
-    callback add-current-track();        //the + next to the song title
+    callback queue-track-clicked(int);   //a track under "Next from" in the queue panel, index into queue-tracks
+    callback recent-track-clicked(int);  //a track in the "Recently played" tab, index into recently-played
+    callback add-current-track();        //the + next to the song title, fired as the popup opens: refresh playlist-choices
+    callback favorite-toggled(bool);     //"Add to Favorites" in the popup, true = now a favorite
+    callback playlist-toggled(int);      //a playlist row in the popup, index into playlist-choices. Add/remove the track, then flip checked
+    callback playlist-picker-search(string);   //"Find a playlist" box in the popup, filter playlist-choices and set them again
+    callback new-playlist-from-track();  //"New playlist" in the popup: create one containing the playing track
 
-    // top bar actions 
+    //top bar actions
     callback search-changed(string);     //on every keystroke
     callback search-submitted(string);   //Enter pressed
     callback profile-clicked();
@@ -92,7 +116,26 @@ export global AppState {
 
     //mock behaviour, replaced when the backend registers its own handler
     next => { if (MockData.enabled) { MockData.next(); } }
+    playlist-toggled(i) => {
+        if (MockData.enabled) {
+            playlist-choices[i].checked = !playlist-choices[i].checked;
+            playlist-choices[i].count += playlist-choices[i].checked ? 1 : -1;
+            track-saved-in += playlist-choices[i].checked ? 1 : -1;
+        }
+    }
     previous => { if (MockData.enabled) { MockData.previous(); } }
+    queue-track-clicked(i) => {
+        if (MockData.enabled) {
+            MockData.load(i);
+            playing = true;
+        }
+    }
+    recent-track-clicked(i) => {
+        if (MockData.enabled) {
+            MockData.play-song(recently-played[i]);
+            playing = true;
+        }
+    }
     seek(s) => { if (MockData.enabled) { MockData.seek(s); } }
     song-clicked(list, i) => {
         if (MockData.enabled) {

@@ -1,10 +1,12 @@
 //main screen after login is successful
-//this file only connects the components to AppState, there is no data or logic in here.
+//This file only connects the components to AppState, there is no data or logic in here.
 import { Theme } from "../theme.slint";
 import { AppState } from "../state.slint";
 import { PlayerBar } from "../components/player-bar.slint";
 import { SideNav, NavSection } from "../components/side-nav.slint";
 import { TopBar } from "../components/top-bar.slint";
+import { QueuePanel } from "../components/queue-panel.slint";
+import { LyricsPanel } from "../components/lyrics-panel.slint";
 import { MockBackend } from "../components/mock-backend.slint";
 import { HomeView } from "home-view.slint";
 import { SongsView } from "songs-view.slint";
@@ -16,11 +18,16 @@ export component AppShell inherits Rectangle {
     background: Theme.primary;
 
     //sidebar and content sit above the player bar
-    Rectangle {
+    main := Rectangle {
         x: 0px;
         y: 0px;
         width: parent.width;
         height: parent.height - Theme.player-bar-height;
+
+        //room taken by the queue panel on the right: 0 while it is closed, slides open and closed
+        property <length> queue-width: Math.min(Theme.side-panel-width, self.width / 2);
+        property <length> queue-space: AppState.queue-open ? self.queue-width : 0px;
+        animate queue-space { duration: 220ms; easing: ease-out; }
 
         side-nav := SideNav {
             x: 0px;
@@ -43,7 +50,7 @@ export component AppShell inherits Rectangle {
         Rectangle {
             x: side-nav.width;
             y: Theme.top-bar-height + 2 * Theme.top-bar-margin;
-            width: parent.width - side-nav.width;
+            width: parent.width - side-nav.width - main.queue-space;
             height: parent.height + 6px - self.y;
             background: Theme.background;
 
@@ -133,6 +140,50 @@ export component AppShell inherits Rectangle {
             search-submitted(t) => { AppState.search-submitted(t); }
             profile-clicked => { AppState.profile-clicked(); }
         }
+
+        //lyrics page: covers the page content, from the sidebar to the queue panel, or to the right edge of the window while the queue is closed. touches the top bar and the player bar
+        LyricsPanel {
+            x: side-nav.width;
+            y: AppState.lyrics-open ? Theme.top-bar-height + 2 * Theme.top-bar-margin : parent.height;
+            width: parent.width - side-nav.width - main.queue-space;
+            height: parent.height + 6px - (Theme.top-bar-height + 2 * Theme.top-bar-margin);
+            visible: AppState.lyrics-open || self.y < parent.height - 0.5px;
+            animate y { duration: 220ms; easing: ease-out; }
+
+            open: AppState.lyrics-open;
+            lines: AppState.lyrics;
+            current-index: AppState.lyric-index;
+
+            closed => {
+                AppState.lyrics-open = false;
+                AppState.lyrics-toggled(false);
+            }
+            line-clicked(t) => { AppState.seek(t); }
+        }
+
+        //queue panel, docked on the right edge: touches the top bar above and the player bar below, and the page content shrinks to make room for it
+        QueuePanel {
+            x: parent.width - main.queue-space;
+            y: Theme.top-bar-height + 2 * Theme.top-bar-margin;
+            width: main.queue-width;
+            height: parent.height + 6px - self.y;
+            visible: main.queue-space > 0.5px;
+
+            now-title: AppState.title;
+            now-artist: AppState.artist;
+            now-art: AppState.cover-art;
+            context: AppState.queue-context;
+            queue: AppState.queue-tracks;
+            current-index: AppState.queue-index;
+            recent: AppState.recently-played;
+
+            closed => {
+                AppState.queue-open = false;
+                AppState.queue-toggled(false);
+            }
+            queue-track-clicked(i) => { AppState.queue-track-clicked(i); }
+            recent-track-clicked(i) => { AppState.recent-track-clicked(i); }
+        }
     }
 
     PlayerBar {
@@ -160,6 +211,14 @@ export component AppShell inherits Rectangle {
         lyrics-clicked => { AppState.lyrics-toggled(AppState.lyrics-open); }
         queue-clicked => { AppState.queue-toggled(AppState.queue-open); }
         add-clicked => { AppState.add-current-track(); }
+
+        playlist-choices: AppState.playlist-choices;
+        saved: AppState.track-saved-in > 0 || AppState.current-favorite;
+        favorited <=> AppState.current-favorite;
+        favorite-toggled(on) => { AppState.favorite-toggled(on); }
+        playlist-toggled(i) => { AppState.playlist-toggled(i); }
+        new-playlist => { AppState.new-playlist-from-track(); }
+        playlist-search(t) => { AppState.playlist-picker-search(t); }
     }
 
     MockBackend {}

@@ -1,23 +1,98 @@
-import { LineEdit, Button } from "std-widgets.slint";
-import { Session } from "../session.slint";
 import { Theme } from "../theme.slint";
+import { Session } from "../session.slint";
+import { WaveLines } from "../components/wave-lines.slint";
+import { ActionCard, ProfileCard } from "../components/login-card.slint";
 
-//screen to show if not logged in
+//screen to show if not logged in: pick a saved profile, add one, or continue as guest
 export component LoginView inherits Rectangle {
-    background: Theme.background;
-    
-    Rectangle {
-        background: Theme.primary;
-        width: parent.width - 200px;
-        height: parent.height - 200px;
-        x: parent.width /2 - self.width / 2 ;
-        y: parent.height /2 - self.height / 2;
+    background: Theme.login-background;
+    clip: true;
 
-        VerticalLayout {
-            Text {
-                text: "Hello";
-                color: Theme.text-primary;
-                font-size: 40pt;
+    //soft glows in two corners
+    Rectangle {
+        x: -150px;
+        y: -150px;
+        width: 460px;
+        height: 460px;
+        background: @radial-gradient(circle, #6f52c4b0 0%, #6f52c400 70%);
+    }
+    Rectangle {
+        x: parent.width - 300px;
+        y: parent.height - 300px;
+        width: 460px;
+        height: 460px;
+        background: @radial-gradient(circle, #ff8fc0e0 0%, #ff8fc000 70%);
+    }
+
+    WaveLines {
+        height: Math.max(160px, parent.height * 0.34);
+        y: parent.height * 0.55 - self.height / 2;
+        width: parent.width;
+    }
+
+    VerticalLayout {
+        alignment: center;
+        spacing: 24px;
+
+        //logo
+        Rectangle {
+            height: 100px;
+            Rectangle {
+                x: (parent.width - self.width) / 2;
+                width: 100px;
+                height: 100px;
+                border-radius: self.width / 2;
+                background: Theme.art-gradient;
+            }
+        }
+
+        Text {
+            text: "Welcome to Luvista Music Player";
+            color: Theme.text-primary;
+            font-size: 30px;
+            font-weight: 800;
+            horizontal-alignment: center;
+        }
+
+        Text {
+            text: "Who is Listening?";
+            color: Theme.text-primary;
+            font-size: 18px;
+            font-weight: 800;
+            horizontal-alignment: center;
+        }
+
+        //cards, scrolls sideways when there are more profiles than fit
+        Rectangle {
+            height: Theme.login-card-height + 4px;
+
+            Flickable {
+                x: (parent.width - self.width) / 2;
+                width: Math.min(row.preferred-width, parent.width - 48px);
+                height: parent.height;
+
+                row := HorizontalLayout {
+                    spacing: 24px;
+
+                    for p[i] in Session.profiles : ProfileCard {
+                        name: p.name;
+                        picture: p.picture;
+                        clicked => { Session.select-profile(i); }
+                    }
+
+                    ActionCard {
+                        label: "Add Profile";
+                        icon: @image-url("../icons/plus.svg");
+                        clicked => { Session.add-profile(); }
+                    }
+
+                    ActionCard {
+                        label: "Guest Mode";
+                        icon: @image-url("../icons/guest.svg");
+                        fill: Theme.art-gradient;
+                        clicked => { Session.continue-as-guest(); }
+                    }
+                }
             }
         }
     }
