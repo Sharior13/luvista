@@ -4,9 +4,10 @@ import { PlaylistInfo } from "components/playlist-item.slint";
 import { NavSection } from "components/side-nav.slint";
 import { SongInfo } from "components/song-row.slint";
 import { PlaylistChoice } from "components/add-to-playlist.slint";
+import { LyricLine } from "components/lyrics-panel.slint";
 
 //re-exported so app.slint can hand them to the C++ side
-export { TrackInfo, PlaylistInfo, NavSection, SongInfo, PlaylistChoice }
+export { TrackInfo, PlaylistInfo, NavSection, SongInfo, PlaylistChoice, LyricLine }
 
 //AppState is the single connection point between the UI and the C++ backend.
 //no other .slint file needs to be touched to connect the backend.
@@ -46,6 +47,10 @@ export global AppState {
     in-out property <[PlaylistChoice]> playlist-choices: MockData.enabled ? MockData.playlist-choices : [];
     in-out property <bool> current-favorite;           //is the playing track a favorite
     in-out property <int> track-saved-in: MockData.enabled ? MockData.track-saved-in : 0;   //in how many playlists the playing track is, the + turns into a tick when this or current-favorite is set
+
+    //lyrics popup (lyrics button in the player bar)
+    in-out property <[LyricLine]> lyrics: MockData.enabled ? MockData.lyrics : [];     //lyrics of the playing song, empty = "No lyrics"
+    in-out property <int> lyric-index: MockData.enabled ? MockData.lyric-index : -1;   //line being sung now, the backend moves it as the song plays, -1 = none yet
 
     //queue panel (queue button in the player bar)
     in-out property <[SongInfo]> queue-tracks: MockData.enabled ? MockData.queue-songs : [];       //whole queue in play order, the playing track included

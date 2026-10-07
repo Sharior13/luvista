@@ -6,6 +6,7 @@ import { PlayerBar } from "../components/player-bar.slint";
 import { SideNav, NavSection } from "../components/side-nav.slint";
 import { TopBar } from "../components/top-bar.slint";
 import { QueuePanel } from "../components/queue-panel.slint";
+import { LyricsPanel } from "../components/lyrics-panel.slint";
 import { MockBackend } from "../components/mock-backend.slint";
 import { HomeView } from "home-view.slint";
 import { SongsView } from "songs-view.slint";
@@ -17,11 +18,16 @@ export component AppShell inherits Rectangle {
     background: Theme.primary;
 
     //sidebar and content sit above the player bar
-    Rectangle {
+    main := Rectangle {
         x: 0px;
         y: 0px;
         width: parent.width;
         height: parent.height - Theme.player-bar-height;
+
+        //room taken by the queue panel on the right: 0 while it is closed, slides open and closed
+        property <length> queue-width: Math.min(Theme.side-panel-width, self.width / 2);
+        property <length> queue-space: AppState.queue-open ? self.queue-width : 0px;
+        animate queue-space { duration: 220ms; easing: ease-out; }
 
         side-nav := SideNav {
             x: 0px;
@@ -44,7 +50,7 @@ export component AppShell inherits Rectangle {
         Rectangle {
             x: side-nav.width;
             y: Theme.top-bar-height + 2 * Theme.top-bar-margin;
-            width: parent.width - side-nav.width;
+            width: parent.width - side-nav.width - main.queue-space;
             height: parent.height + 6px - self.y;
             background: Theme.background;
 
@@ -135,13 +141,33 @@ export component AppShell inherits Rectangle {
             profile-clicked => { AppState.profile-clicked(); }
         }
 
-        //queue panel, slides in from the right side of the window when the queue button is on
+        //lyrics page: covers the page content, from the sidebar to the queue panel, or to the right edge of the window while the queue is closed. touches the top bar and the player bar
+        LyricsPanel {
+            x: side-nav.width;
+            y: AppState.lyrics-open ? Theme.top-bar-height + 2 * Theme.top-bar-margin : parent.height;
+            width: parent.width - side-nav.width - main.queue-space;
+            height: parent.height + 6px - (Theme.top-bar-height + 2 * Theme.top-bar-margin);
+            visible: AppState.lyrics-open || self.y < parent.height - 0.5px;
+            animate y { duration: 220ms; easing: ease-out; }
+
+            open: AppState.lyrics-open;
+            lines: AppState.lyrics;
+            current-index: AppState.lyric-index;
+
+            closed => {
+                AppState.lyrics-open = false;
+                AppState.lyrics-toggled(false);
+            }
+            line-clicked(t) => { AppState.seek(t); }
+        }
+
+        //queue panel, docked on the right edge: touches the top bar above and the player bar below, and the page content shrinks to make room for it
         QueuePanel {
-            width: Math.min(320px, parent.width - 24px);
-            x: AppState.queue-open ? parent.width - self.width - 8px : parent.width + 24px;
+            x: parent.width - main.queue-space;
             y: Theme.top-bar-height + 2 * Theme.top-bar-margin;
-            height: parent.height - self.y - 8px;
-            animate x { duration: 220ms; easing: ease-out; }
+            width: main.queue-width;
+            height: parent.height + 6px - self.y;
+            visible: main.queue-space > 0.5px;
 
             now-title: AppState.title;
             now-artist: AppState.artist;

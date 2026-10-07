@@ -10,7 +10,7 @@ component QueueRow inherits Rectangle {
     in property <bool> current: false;     //the track that is playing right now, not clickable
     callback clicked();
 
-    height: 68px;
+    height: 56px;
     border-radius: 8px;
     background: touch.has-hover ? Theme.nav-hover : transparent;
     animate background { duration: Theme.anim-fast; }
@@ -22,19 +22,19 @@ component QueueRow inherits Rectangle {
     }
 
     Rectangle {
-        x: 8px;
+        x: 6px;
         y: (parent.height - self.height) / 2;
-        width: 56px;
-        height: 56px;
-        border-radius: 6px;
+        width: 44px;
+        height: 44px;
+        border-radius: 5px;
         clip: true;
         background: @linear-gradient(135deg, Theme.playlist-art-start 0%, Theme.playlist-art-end 100%);
 
         Image {
             source: @image-url("../icons/music.svg");
             colorize: Theme.text-primary;
-            width: 24px;
-            height: 24px;
+            width: 18px;
+            height: 18px;
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
             opacity: 0.85;
@@ -48,23 +48,23 @@ component QueueRow inherits Rectangle {
     }
 
     VerticalLayout {
-        x: 8px + 56px + 14px;
-        width: max(0px, parent.width - self.x - 8px);
+        x: 6px + 44px + 12px;
+        width: max(0px, parent.width - self.x - 6px);
         height: parent.height;
         alignment: center;
-        spacing: 3px;
+        spacing: 2px;
 
         Text {
             text: root.title;
             color: root.current ? Theme.pink : Theme.text-primary;
-            font-size: 17px;
+            font-size: 14px;
             font-weight: 700;
             overflow: elide;
         }
         Text {
             text: root.artist;
             color: Theme.control-muted;
-            font-size: 15px;
+            font-size: 12px;
             font-weight: 700;
             overflow: elide;
         }
@@ -78,14 +78,14 @@ component TabLabel inherits Rectangle {
     callback clicked();
 
     width: label.preferred-width;
-    height: 40px;
+    height: 34px;
 
     label := Text {
         y: 0px;
         height: parent.height - 3px;
         text: root.text;
         color: root.active || touch.has-hover ? Theme.text-primary : Theme.control-muted;
-        font-size: 17px;
+        font-size: 14px;
         font-weight: 700;
         vertical-alignment: center;
         animate color { duration: Theme.anim-fast; }
@@ -102,8 +102,7 @@ component TabLabel inherits Rectangle {
     }
 }
 
-//Panel on the right side of the window, opened with the queue button in the player bar.
-//The page that uses it sets x/y/width/height and slides it in and out (see app-shell.slint).
+//queue panel, docked on the right edge of the window
 export component QueuePanel inherits Rectangle {
     in property <string> now-title;
     in property <string> now-artist;
@@ -119,24 +118,19 @@ export component QueuePanel inherits Rectangle {
     property <int> tab: 0;                      //0 = Queue, 1 = Recently played
 
     background: Theme.primary;
-    border-radius: 12px;
-    border-width: 1px;
-    border-color: Theme.bar-border;
-    drop-shadow-blur: 24px;
-    drop-shadow-color: Theme.shadow;
     clip: true;
 
-    //tabs and close button, pinned to the top (an element with no y is centered)
+    //tabs and close button, pinned to the top
     Rectangle {
         x: 0px;
         y: 0px;
         width: parent.width;
-        height: 56px;
+        height: 48px;
 
         HorizontalLayout {
-            padding-left: 20px;
+            padding-left: 14px;
             padding-top: 8px;
-            spacing: 22px;
+            spacing: 16px;
             alignment: start;
 
             TabLabel {
@@ -152,10 +146,10 @@ export component QueuePanel inherits Rectangle {
         }
 
         Rectangle {
-            x: parent.width - self.width - 12px;
-            y: (parent.height - self.height) / 2;
-            width: 34px;
-            height: 34px;
+            x: parent.width - self.width - 8px;
+            y: (parent.height - self.height) / 2 + 2px;
+            width: 28px;
+            height: 28px;
             border-radius: self.width / 2;
             background: close-touch.has-hover ? Theme.nav-hover : transparent;
             animate background { duration: Theme.anim-fast; }
@@ -163,8 +157,8 @@ export component QueuePanel inherits Rectangle {
             Image {
                 source: @image-url("../icons/close.svg");
                 colorize: Theme.icon-dim;
-                width: 18px;
-                height: 18px;
+                width: 14px;
+                height: 14px;
                 x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
             }
@@ -177,23 +171,23 @@ export component QueuePanel inherits Rectangle {
 
     PageScroll {
         x: 0px;
-        y: 56px;
+        y: 48px;
         width: parent.width;
-        height: parent.height - 56px;
+        height: parent.height - 48px;
 
         VerticalLayout {
-            padding-left: 12px;
-            padding-right: 16px;
+            padding-left: 8px;
+            padding-right: 12px;
             padding-bottom: 12px;
             spacing: 2px;
 
-            //---------- Queue tab ----------
+            //queue tab
             if root.tab == 0 : Text {
                 text: "Now playing";
-                height: 48px;
-                x: 8px;
+                height: 36px;
+                x: 6px;
                 color: Theme.text-primary;
-                font-size: 20px;
+                font-size: 16px;
                 font-weight: 800;
                 vertical-alignment: center;
             }
@@ -206,10 +200,10 @@ export component QueuePanel inherits Rectangle {
 
             if root.tab == 0 && root.queue.length > root.current-index + 1 : Text {
                 text: root.context == "" ? "Next up" : "Next from: " + root.context;
-                height: 56px;
-                x: 8px;
+                height: 46px;
+                x: 6px;
                 color: Theme.text-primary;
-                font-size: 20px;
+                font-size: 16px;
                 font-weight: 800;
                 vertical-alignment: bottom;
                 overflow: elide;
@@ -223,12 +217,12 @@ export component QueuePanel inherits Rectangle {
                 }
             }
 
-            //---------- Recently played tab ----------
+            //recently played tab 
             if root.tab == 1 && root.recent.length == 0 : Text {
                 text: "Nothing played yet";
                 height: 80px;
                 color: Theme.control-muted;
-                font-size: 16px;
+                font-size: 14px;
                 font-weight: 700;
                 horizontal-alignment: center;
                 vertical-alignment: center;

@@ -3,6 +3,7 @@ import { PlaylistInfo } from "components/playlist-item.slint";
 import { SongInfo } from "components/song-row.slint";
 import { ProfileInfo } from "components/login-card.slint";
 import { PlaylistChoice } from "components/add-to-playlist.slint";
+import { LyricLine } from "components/lyrics-panel.slint";
 
 //one entry of the fake play queue
 export struct MockTrack {
@@ -129,6 +130,26 @@ export global MockData {
         { title: "Salt & Pepper", artist: "Hollis & Reed", duration: 176 },
         { title: "Afterglow Drive", artist: "Ines Alder", duration: 221 },
     ];
+
+    //lyrics popup, made up for the first track (about 13 seconds per line)
+    out property <[LyricLine]> lyrics: [
+        { time: 6, text: "The streetlights hum a quiet tune" },
+        { time: 19, text: "Along the road we used to know" },
+        { time: 32, text: "The tide is pulling at the moon" },
+        { time: 45, text: "And I am walking slow" },
+        { time: 58, text: "♪" },
+        { time: 71, text: "Leave the window open wide" },
+        { time: 84, text: "Let the salt air through" },
+        { time: 97, text: "Every mile I'm leaving behind" },
+        { time: 110, text: "Is a mile that leads to you" },
+        { time: 123, text: "Slow tide, take me home" },
+        { time: 136, text: "Carry me past the lights" },
+        { time: 149, text: "Slow tide, take me home" },
+        { time: 162, text: "Where the morning meets the night" },
+        { time: 175, text: "♪" },
+    ];
+    //line being sung at the current position, -1 before the first line (keep the times in sync with lyrics above)
+    out property <int> lyric-index: position >= 175 ? 13 : position >= 162 ? 12 : position >= 149 ? 11 : position >= 136 ? 10 : position >= 123 ? 9 : position >= 110 ? 8 : position >= 97 ? 7 : position >= 84 ? 6 : position >= 71 ? 5 : position >= 58 ? 4 : position >= 45 ? 3 : position >= 32 ? 2 : position >= 19 ? 1 : position >= 6 ? 0 : -1;
 
     //the queue panel shows the same tracks as the fake player above (keep the order in sync)
     out property <string> queue-context: "Late Night Drive";
