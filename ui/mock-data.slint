@@ -125,6 +125,28 @@ export global MockData {
         { title: "Northbound", artist: "The Quiet Fields", duration: 242 },
         { title: "Glass Hours", artist: "Ines Alder", duration: 203 },
         { title: "Low Orbit", artist: "Juno Park", duration: 171 },
+        { title: "Neon Letters", artist: "Juno Park", duration: 198 },
+        { title: "Salt & Pepper", artist: "Hollis & Reed", duration: 176 },
+        { title: "Afterglow Drive", artist: "Ines Alder", duration: 221 },
+    ];
+
+    //the queue panel shows the same tracks as the fake player above (keep the order in sync)
+    out property <string> queue-context: "Late Night Drive";
+    out property <[SongInfo]> queue-songs: [
+        { title: "Slow Tide Home", artist: "Marlo Vey" },
+        { title: "Paper Lanterns", artist: "Hollis & Reed" },
+        { title: "Northbound", artist: "The Quiet Fields" },
+        { title: "Glass Hours", artist: "Ines Alder" },
+        { title: "Low Orbit", artist: "Juno Park" },
+        { title: "Neon Letters", artist: "Juno Park" },
+        { title: "Salt & Pepper", artist: "Hollis & Reed" },
+        { title: "Afterglow Drive", artist: "Ines Alder" },
+    ];
+    out property <[SongInfo]> recently-played: [
+        { title: "Evergreen", artist: "Hollis & Reed" },
+        { title: "Soft Static", artist: "Marlo Vey" },
+        { title: "Tidal Hours", artist: "Marlo Vey" },
+        { title: "Long Way Round", artist: "The Quiet Fields" },
     ];
 
     in-out property <int> index: 0;

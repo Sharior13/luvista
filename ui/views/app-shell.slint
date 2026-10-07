@@ -5,6 +5,7 @@ import { AppState } from "../state.slint";
 import { PlayerBar } from "../components/player-bar.slint";
 import { SideNav, NavSection } from "../components/side-nav.slint";
 import { TopBar } from "../components/top-bar.slint";
+import { QueuePanel } from "../components/queue-panel.slint";
 import { MockBackend } from "../components/mock-backend.slint";
 import { HomeView } from "home-view.slint";
 import { SongsView } from "songs-view.slint";
@@ -132,6 +133,30 @@ export component AppShell inherits Rectangle {
             search-edited(t) => { AppState.search-changed(t); }
             search-submitted(t) => { AppState.search-submitted(t); }
             profile-clicked => { AppState.profile-clicked(); }
+        }
+
+        //queue panel, slides in from the right side of the window when the queue button is on
+        QueuePanel {
+            width: Math.min(320px, parent.width - 24px);
+            x: AppState.queue-open ? parent.width - self.width - 8px : parent.width + 24px;
+            y: Theme.top-bar-height + 2 * Theme.top-bar-margin;
+            height: parent.height - self.y - 8px;
+            animate x { duration: 220ms; easing: ease-out; }
+
+            now-title: AppState.title;
+            now-artist: AppState.artist;
+            now-art: AppState.cover-art;
+            context: AppState.queue-context;
+            queue: AppState.queue-tracks;
+            current-index: AppState.queue-index;
+            recent: AppState.recently-played;
+
+            closed => {
+                AppState.queue-open = false;
+                AppState.queue-toggled(false);
+            }
+            queue-track-clicked(i) => { AppState.queue-track-clicked(i); }
+            recent-track-clicked(i) => { AppState.recent-track-clicked(i); }
         }
     }
 

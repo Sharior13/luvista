@@ -47,6 +47,12 @@ export global AppState {
     in-out property <bool> current-favorite;           //is the playing track a favorite
     in-out property <int> track-saved-in: MockData.enabled ? MockData.track-saved-in : 0;   //in how many playlists the playing track is, the + turns into a tick when this or current-favorite is set
 
+    //queue panel (queue button in the player bar)
+    in-out property <[SongInfo]> queue-tracks: MockData.enabled ? MockData.queue-songs : [];       //whole queue in play order, the playing track included
+    in-out property <int> queue-index: MockData.enabled ? MockData.index : 0;                     //position of the playing track in queue-tracks
+    in-out property <string> queue-context: MockData.enabled ? MockData.queue-context : "";       //"Next from: ...", empty = just "Next up"
+    in-out property <[SongInfo]> recently-played: MockData.enabled ? MockData.recently-played : [];   //newest first
+
     //home page lists
     in-out property <[TrackInfo]> recent: MockData.enabled && MockData.home-feed ? MockData.recent : [];
     in-out property <[TrackInfo]> most-played: MockData.enabled && MockData.home-feed ? MockData.most-played : [];
@@ -72,6 +78,8 @@ export global AppState {
     callback repeat-toggled(bool);
     callback lyrics-toggled(bool);
     callback queue-toggled(bool);
+    callback queue-track-clicked(int);   //a track under "Next from" in the queue panel, index into queue-tracks
+    callback recent-track-clicked(int);  //a track in the "Recently played" tab, index into recently-played
     callback add-current-track();        //the + next to the song title, fired as the popup opens: refresh playlist-choices
     callback favorite-toggled(bool);     //"Add to Favorites" in the popup, true = now a favorite
     callback playlist-toggled(int);      //a playlist row in the popup, index into playlist-choices. Add/remove the track, then flip checked
@@ -111,6 +119,18 @@ export global AppState {
         }
     }
     previous => { if (MockData.enabled) { MockData.previous(); } }
+    queue-track-clicked(i) => {
+        if (MockData.enabled) {
+            MockData.load(i);
+            playing = true;
+        }
+    }
+    recent-track-clicked(i) => {
+        if (MockData.enabled) {
+            MockData.play-song(recently-played[i]);
+            playing = true;
+        }
+    }
     seek(s) => { if (MockData.enabled) { MockData.seek(s); } }
     song-clicked(list, i) => {
         if (MockData.enabled) {
