@@ -1,6 +1,7 @@
 import { TrackInfo } from "components/track-card.slint";
 import { PlaylistInfo } from "components/playlist-item.slint";
 import { SongInfo } from "components/song-row.slint";
+import { ProfileInfo } from "components/login-card.slint";
 
 //one entry of the fake play queue
 export struct MockTrack {
@@ -19,6 +20,13 @@ export global MockData {
 
     //profile
     out property <string> profile-initial: "A";     //first letter of the profile name
+
+    //saved profiles on the login screen (no picture = gradient with the profile icon)
+    out property <[ProfileInfo]> profiles: [
+        { name: "Alex Morgan" },
+        { name: "Jamie Rivera" },
+        { name: "Sam Okafor" },
+    ];
 
     //library
     out property <int> songs-count: 128;

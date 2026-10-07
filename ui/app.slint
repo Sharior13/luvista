@@ -6,6 +6,8 @@ import { AppState } from "state.slint";
 //everything the C++ side needs: ui->global<AppState>() and the types used by its lists
 export { AppState, TrackInfo, PlaylistInfo, NavSection, SongInfo } from "state.slint";
 export { MockData } from "mock-data.slint";
+export { Session } from "session.slint";
+export { ProfileInfo } from "components/login-card.slint";
 
 export component AppWindow inherits Window {
     title: "Luvista Music Player";
@@ -22,10 +24,6 @@ export component AppWindow inherits Window {
     full-screen <=> AppState.fullscreen;
 
     //login gate
-
-    //design login screen first and then uncomment
-    // if !Session.logged-in : LoginView {}
-    // if Session.logged-in : AppShell {}
-
-    AppShell {}
+    if !Session.logged-in : LoginView {}
+    if Session.logged-in : AppShell {}
 }
