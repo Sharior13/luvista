@@ -49,6 +49,23 @@ void RecentList::add(int id)
     out << newList;
 }
 
+// Takes one song out of the list (the other songs stay).
+void RecentList::remove(int id)
+{
+    std::ifstream in(recentFile());
+    std::string kept = "";
+    std::string line;
+
+    while (std::getline(in, line)) {
+        if (std::atoi(line.c_str()) != id)
+            kept += line + "\n";   // keep every song except this one
+    }
+    in.close();
+
+    std::ofstream out(recentFile());   // this erases the old file
+    out << kept;
+}
+
 int RecentList::count() const
 {
     std::ifstream File(recentFile());

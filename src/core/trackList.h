@@ -17,6 +17,9 @@ public:
     // False if the folder does not exist.
     bool scan(const std::string& folderPath);
 
+    // Takes song number n out of the notebook (the file on disk stays).
+    bool removeSong(int n);
+
     int getCount() const;
 
     // Song number n (the first song is number 1)

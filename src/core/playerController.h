@@ -59,6 +59,11 @@ public:
     std::string playlistName(int n) const;
     bool addCurrentToPlaylist(const std::string& name);
     bool addToPlaylist(const std::string& name, int songNumber);   // NEW: the "+" on a row
+    bool removeCurrentFromPlaylist(const std::string& name);       // takes the playing song out of a playlist
+    bool removeFromPlaylistRow(const std::string& name, int row);  // takes song row n out of a playlist
+    bool deletePlaylist(const std::string& name);                  // deletes a whole playlist
+    void clearFavorites();                                         // empties the favorites list
+    bool removeSongFromLibrary(int songNumber);                    // forgets a song (the file stays on disk)
     int playlistSongCount(const std::string& name) const;
     std::string playlistSongTitle(const std::string& name, int n) const;
 

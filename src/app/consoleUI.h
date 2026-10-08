@@ -17,6 +17,7 @@ public:
     // Playlist screens
     std::string createPlaylistScreen();      // asks for a name, makes the playlist
     std::string addToPlaylistScreen();       // picks a playlist, adds the song playing now
+    std::string deleteScreen();              // deletes a playlist, or takes this song out of one
     void showPlaylists();                    // lists playlists, open one to see its songs
     std::string searchSongsScreen();         // searches all songs, pick one to play
     // Looks for songs in the folder, then runs until you press X

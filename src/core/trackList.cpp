@@ -438,6 +438,34 @@ bool TrackList::scan(const std::string& folderPath)
 }
 
 
+// Takes song number n out of the notebook. The music file itself stays on disk.
+bool TrackList::removeSong(int n)
+{
+    if (n < 1 || n > count)
+        return false;
+
+    std::ifstream in(AppPaths::indexFile());
+    std::string kept = "";
+    std::string line;
+    int number = 0;
+
+    while (std::getline(in, line)) {
+        number++;
+
+        if (number != n && line != "")
+            kept += line + "\n";   // keep every line except song n
+    }
+    in.close();
+
+    std::ofstream out(AppPaths::indexFile());   // this erases the old notebook
+    out << kept;
+    out.close();   // finish writing BEFORE counting, so countSongs sees the new file
+
+    countSongs();
+    return true;
+}
+
+
 int TrackList::getCount() const
 {
     return count;

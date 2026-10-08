@@ -68,6 +68,7 @@ void ConsoleUI::draw(const std::string& message)
         << "[Q] Recently played\n"
         << "[C] Create playlist\n"
         << "[T] Add this song to a playlist\n"
+        << "[D] Delete playlist / remove song\n"
         << "[M] My playlists\n"
         << "[X] Exit\n"
         << "-----------------------\n";
@@ -230,6 +231,126 @@ std::string ConsoleUI::addToPlaylistScreen()
         return "Added to " + name;
 
     return "Already in " + name;
+}
+
+
+// Asks what to delete:
+// 1 = delete a whole playlist, 2 = take the song playing now out of a playlist,
+// 3 = take any song out of a playlist, 4 = empty the favorites list,
+// 5 = forget a song (the file stays on disk).
+std::string ConsoleUI::deleteScreen()
+{
+    system("cls");
+
+    std::cout << "\n========== DELETE ==========\n\n"
+        << "[1] Delete a whole playlist\n"
+        << "[2] Remove this song from a playlist\n"
+        << "[3] Remove any song from a playlist\n"
+        << "[4] Clear ALL favorites\n"
+        << "[5] Remove a song from the library\n\n"
+        << "Pick 1-5 (0 = cancel): ";
+
+    int choice = readNumber();
+
+    if (choice < 1 || choice > 5)
+        return "Cancelled";
+
+    // Option 4 does not need a playlist.
+    if (choice == 4) {
+        if (player.favoriteCount() == 0)
+            return "Favorites are already empty";
+
+        player.clearFavorites();
+        return "All favorites cleared";
+    }
+
+    int count = player.playlistCount();
+
+    if (count == 0)
+        return "No playlists yet. Press C to create one";
+
+    system("cls");
+    std::cout << "\n========== DELETE ==========\n\n";
+
+    for (int i = 1; i <= count; i++) {
+        std::cout << "[" << i << "] " << player.playlistName(i) << "\n";
+    }
+
+    std::cout << "\nPick a number (0 = cancel): ";
+    int pick = readNumber();
+
+    if (pick < 1 || pick > count)
+        return "Cancelled";
+
+    std::string name = player.playlistName(pick);
+
+    if (choice == 1) {
+        if (player.deletePlaylist(name))
+            return "Deleted playlist: " + name;
+
+        return "Could not delete " + name;
+    }
+
+    if (choice == 3) {
+        if (player.playlistSongCount(name) == 0)
+            return name + " has no songs";
+
+        // show the songs so a number can be picked
+        system("cls");
+        std::cout << "\n========== " << name << " ==========\n\n";
+
+        for (int n = 1; n <= player.playlistSongCount(name); n++) {
+            std::cout << "[" << n << "] "
+                << describe(player.playlistSongNumber(name, n)) << "\n";
+        }
+
+        std::cout << "\nRemove which song (0 = cancel): ";
+        int row = readNumber();
+
+        if (row < 1 || row > player.playlistSongCount(name))
+            return "Cancelled";
+
+        if (player.removeFromPlaylistRow(name, row))
+            return "Removed from " + name;
+
+        return "Could not remove it";
+    }
+
+    // choice 5: forget one song from the whole library
+    if (choice == 5) {
+        if (player.total() == 0)
+            return "The library is empty";
+
+        system("cls");
+        std::cout << "\n========== REMOVE FROM LIBRARY ==========\n\n"
+            << "(the music file stays on disk)\n\n";
+
+        for (int n = 1; n <= player.total(); n++) {
+            std::cout << "[" << n << "] " << describe(n) << "\n";
+        }
+
+        std::cout << "\nRemove which song (0 = cancel): ";
+        int song = readNumber();
+
+        if (song < 1 || song > player.total())
+            return "Cancelled";
+
+        std::string title = player.songTitle(song);
+
+        if (player.removeSongFromLibrary(song))
+            return "Removed from library: " + title;
+
+        return "Could not remove " + title;
+    }
+
+    // choice 2
+    if (player.currentIndex() == 0)
+        return "No song is playing";
+
+    if (player.removeCurrentFromPlaylist(name))
+        return "Removed " + player.songName() + " from " + name;
+
+    return player.songName() + " was not in " + name;
 }
 
 
@@ -441,6 +562,10 @@ void ConsoleUI::run(const std::string& folder)
 
             case 'T':
                 message = addToPlaylistScreen();
+                break;
+
+            case 'D':
+                message = deleteScreen();
                 break;
 
             case 'M':
