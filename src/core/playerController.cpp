@@ -271,6 +271,36 @@ std::string PlayerController::songTitle(int n) const
 }
 
 
+std::string PlayerController::songArtist(int n) const
+{
+    return tracks.getArtist(n);
+}
+
+
+std::string PlayerController::songAlbum(int n) const
+{
+    return tracks.getAlbum(n);
+}
+
+
+int PlayerController::favoriteSongNumber(int row) const
+{
+    return tracks.positionOfId(favorites.get(row));
+}
+
+
+int PlayerController::recentSongNumber(int row) const
+{
+    return tracks.positionOfId(recent.get(row));
+}
+
+
+int PlayerController::playlistSongNumber(const std::string& name, int row) const
+{
+    return tracks.positionOfId(playlists.getSong(name, row));
+}
+
+
 // The name of the song that comes after the one playing now.
 std::string PlayerController::nextSongTitle() const
 {

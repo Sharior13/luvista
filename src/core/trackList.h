@@ -30,7 +30,7 @@ public:
     // From an id to a song number: 1, 2, 3 ... or 0 if there is no such song
     int positionOfId(int id) const;
 
-    // Does song number n match the search words? Looks at the title and the artist,
+    // Does song number n match the search words? Looks at the title, artist and album,
     // ignores big/small letters. An empty search matches every song.
     bool matches(int n, const std::string& query) const;
 

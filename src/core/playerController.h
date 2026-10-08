@@ -33,16 +33,16 @@ public:
 
     void pause();
     void resume();
-    void togglePlay();                  // NEW: one button for pause and resume
+    void togglePlay();                  
     void restart();
     void forward(double seconds = 10);
     void back(double seconds = 10);
-    void seekTo(double seconds);        // NEW: for the seek bar
+    void seekTo(double seconds);        
     void update();
 
     void volumeUp();
     void volumeDown();
-    void setVolume(int percent);        // NEW: for the volume slider
+    void setVolume(int percent);       
 
     void toggleFavorite();
     bool isFavorite() const;
@@ -78,6 +78,15 @@ public:
     std::string songName() const;
     std::string lastError() const;
     std::string songTitle(int n) const;
+    std::string songArtist(int n) const;        // the artist of song number n
+    std::string songAlbum(int n) const;         // the album of song number n
+
+    // From a row of a list to a song number (0 if there is no such row).
+    // Use with songTitle / songArtist / songAlbum.
+    int favoriteSongNumber(int row) const;
+    int recentSongNumber(int row) const;
+    int playlistSongNumber(const std::string& name, int row) const;
+
     std::string nextSongTitle() const;          // NEW: "Next in queue" card
     long long songAdded(int n) const;           // NEW: "Date added" column
 };

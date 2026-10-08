@@ -13,7 +13,7 @@ int main()
     PlayerController player(audio, tracks);  
     ConsoleUI ui(player);
     ui.run(MUSIC_FOLDER);                   
-     /*auto ui = AppWindow::create();
-     ui->run();*/
+     //auto ui = AppWindow::create();
+    // ui->run();
     return 0;
 }

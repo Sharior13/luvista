@@ -22,12 +22,24 @@ std::string ConsoleUI::askSearch()
 }
 
 
+// One line of text for a song: Title  |  Artist  |  Album
+std::string ConsoleUI::describe(int songNumber)
+{
+    return player.songTitle(songNumber) + "  |  " +
+        player.songArtist(songNumber) + "  |  " +
+        player.songAlbum(songNumber);
+}
+
+
 // Clears the screen and draws everything again.
 void ConsoleUI::draw(const std::string& message)
 {
     system("cls");
 
     std::cout << "Playing Now: " << player.songName();
+
+    if (player.currentIndex() != 0)
+        std::cout << " - " << player.songArtist(player.currentIndex());
 
     if (player.isFavorite())
         std::cout << " [Favorite]";
@@ -101,7 +113,7 @@ void ConsoleUI::showFavorites()
         if (row == 0)
             break;
 
-        std::cout << "[" << n << "] " << player.favoriteTitle(row) << "\n";
+        std::cout << "[" << n << "] " << describe(player.favoriteSongNumber(row)) << "\n";
         shown++;
     }
 
@@ -144,7 +156,7 @@ void ConsoleUI::showRecent()
         if (row == 0)
             break;
 
-        std::cout << "[" << n << "] " << player.recentTitle(row) << "\n";
+        std::cout << "[" << n << "] " << describe(player.recentSongNumber(row)) << "\n";
         shown++;
     }
 
@@ -243,7 +255,7 @@ std::string ConsoleUI::searchSongsScreen()
         if (song == 0)
             break;
 
-        std::cout << "[" << n << "] " << player.songTitle(song) << "\n";
+        std::cout << "[" << n << "] " << describe(song) << "\n";
         shown++;
     }
 
@@ -319,7 +331,7 @@ void ConsoleUI::showPlaylists()
                 break;
 
             std::cout << "[" << n << "] "
-                << player.playlistSongTitle(name, row) << "\n";
+                << describe(player.playlistSongNumber(name, row)) << "\n";
             shown++;
         }
 

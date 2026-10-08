@@ -8,6 +8,7 @@ private:
 
     void draw(const std::string& message);   // draws the whole screen
     std::string askSearch();                 // asks for search words (empty = show everything)
+    std::string describe(int songNumber);    // "Title  |  Artist  |  Album" for one row
 
 public:
     ConsoleUI(PlayerController& p);
