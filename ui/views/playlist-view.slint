@@ -1,0 +1,41 @@
+import { LibraryPage } from "../components/library-page.slint";
+import { SongInfo } from "../components/song-row.slint";
+import { Format } from "../format.slint";
+
+//one playlist, opened from the sidebar. uses the playlist's art when it has one, otherwise the gradient with a playlist icon.
+export component PlaylistView inherits Rectangle {
+    in property <string> title;
+    in property <image> art;
+    in property <[SongInfo]> songs;
+    in property <float> total-seconds;
+    callback song-clicked(int);
+    callback play-clicked();
+    callback shuffle-clicked();
+    callback search-edited(string);
+    callback sort-changed(int);
+    callback edit-art-clicked();       //click on the playlist art (edit icon)
+    callback browse-songs();           //the "All Songs" link in the empty state
+
+    LibraryPage {
+        page-title: "Playlist";
+        name: root.title;
+        subtitle: Format.songs(root.songs.length, root.total-seconds);
+        header-art: root.art;
+        header-icon: @image-url("../icons/playlist.svg");
+        header-show-icon: root.art.width == 0;
+        header-hover: true;
+        header-hover-icon: @image-url("../icons/edit.svg");
+        search-placeholder: "Search \{root.title}";
+        songs: root.songs;
+        empty-text: "This playlist is empty. Add songs from ";
+        empty-link: "All Songs";
+
+        song-clicked(i) => { root.song-clicked(i); }
+        play-clicked => { root.play-clicked(); }
+        shuffle-clicked => { root.shuffle-clicked(); }
+        search-edited(t) => { root.search-edited(t); }
+        sort-changed(i) => { root.sort-changed(i); }
+        empty-link-clicked => { root.browse-songs(); }
+        header-clicked => { root.edit-art-clicked(); }
+    }
+}

@@ -1,0 +1,103 @@
+//sine like calculated in pixel
+component Wave inherits Path {
+    in property <float> cycles: 1.5;     //full periods across the width
+    in property <float> amp: 0.3;        //height of the swing, as a fraction of the box height
+    in property <float> speed: 0.5;      //radians per second, negative = drifts the other way
+    in property <float> offset: 0;       //starting phase in radians
+    in property <color> tint: #c48ad6;
+    in property <float> alpha: 0.5;
+
+    property <float> t: animation-tick() / 1s;
+    property <float> w: root.width / 1px;
+    property <float> h: root.height / 1px;
+
+    pure function y-at(x: float) -> float {
+        return root.h * (0.5 + root.amp
+            * (1 + 0.25 * Math.sin((root.t * 0.6 + root.offset) * 1rad))
+            * Math.sin((6.2831853 * root.cycles * x / root.w + root.offset + root.speed * root.t) * 1rad));
+    }
+
+    //line to the i-th of 56 evenly spaced points
+    pure function seg(i: int) -> string {
+        return "L \{i * root.w / 56} \{root.y-at(i * root.w / 56)} ";
+    }
+
+    width: 100%;
+    height: 100%;
+    viewbox-width: root.w;
+    viewbox-height: root.h;
+    stroke-width: 1.2px;
+    //fades out towards both edges of the window
+    stroke: @linear-gradient(90deg,
+        root.tint.with-alpha(0) 0%,
+        root.tint.with-alpha(root.alpha) 20%,
+        root.tint.with-alpha(root.alpha) 80%,
+        root.tint.with-alpha(0) 100%);
+
+    commands: "M 0 \{root.y-at(0)} " +
+        root.seg(1) +
+        root.seg(2) +
+        root.seg(3) +
+        root.seg(4) +
+        root.seg(5) +
+        root.seg(6) +
+        root.seg(7) +
+        root.seg(8) +
+        root.seg(9) +
+        root.seg(10) +
+        root.seg(11) +
+        root.seg(12) +
+        root.seg(13) +
+        root.seg(14) +
+        root.seg(15) +
+        root.seg(16) +
+        root.seg(17) +
+        root.seg(18) +
+        root.seg(19) +
+        root.seg(20) +
+        root.seg(21) +
+        root.seg(22) +
+        root.seg(23) +
+        root.seg(24) +
+        root.seg(25) +
+        root.seg(26) +
+        root.seg(27) +
+        root.seg(28) +
+        root.seg(29) +
+        root.seg(30) +
+        root.seg(31) +
+        root.seg(32) +
+        root.seg(33) +
+        root.seg(34) +
+        root.seg(35) +
+        root.seg(36) +
+        root.seg(37) +
+        root.seg(38) +
+        root.seg(39) +
+        root.seg(40) +
+        root.seg(41) +
+        root.seg(42) +
+        root.seg(43) +
+        root.seg(44) +
+        root.seg(45) +
+        root.seg(46) +
+        root.seg(47) +
+        root.seg(48) +
+        root.seg(49) +
+        root.seg(50) +
+        root.seg(51) +
+        root.seg(52) +
+        root.seg(53) +
+        root.seg(54) +
+        root.seg(55) +
+        root.seg(56);
+}
+
+export component WaveLines inherits Rectangle {
+    Wave { cycles: 1.4; amp: 0.30; speed: 0.55;  offset: 0.0; alpha: 0.60; }
+    Wave { cycles: 1.7; amp: 0.26; speed: -0.45; offset: 1.1; alpha: 0.50; tint: #9a7bf0; }
+    Wave { cycles: 2.1; amp: 0.20; speed: 0.70;  offset: 2.3; alpha: 0.45; }
+    Wave { cycles: 1.2; amp: 0.34; speed: -0.35; offset: 3.4; alpha: 0.40; tint: #f08fb6; }
+    Wave { cycles: 2.6; amp: 0.14; speed: 0.85;  offset: 4.6; alpha: 0.35; tint: #9a7bf0; }
+    Wave { cycles: 1.9; amp: 0.22; speed: -0.60; offset: 5.5; alpha: 0.35; tint: #f08fb6; }
+}

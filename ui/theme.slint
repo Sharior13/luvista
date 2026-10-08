@@ -29,6 +29,7 @@ export global Theme {
     out property <length> sidebar-width: 212px;
     out property <length> sidebar-compact: 68px;
     out property <length> player-bar-height: 120px;
+    out property <length> side-panel-width: 260px;     //queue panel, docked on the right edge between the top bar and the player bar
     out property <color> nav-hover: #ffffff14;
     out property <duration> anim-fast: 150ms;
     out property <color> divider: #ffffff70;
@@ -48,4 +49,24 @@ export global Theme {
     out property <length> top-bar-margin: 8px;
     out property <length> bp-search: 600px;            //below this bar width the search turns into a popup
     out property <length> search-max-width: 420px;
+
+    //login screen
+    out property <color> login-background: #2d2350;
+    out property <color> login-card-border: #1d1338;
+    out property <length> login-card-width: 142px;
+    out property <length> login-card-height: 148px;
+
+    //library pages (songs, favorites, recordings, playlist)
+    out property <color> header-band: #4d3578;
+    out property <color> control-muted: #a99bbd;
+    out property <color> input-bg: #1f1a40;
+    out property <brush> art-gradient: @linear-gradient(225deg, #ffe6d2 0%, #ff4fa3 60%, #ff1a8c 100%);
+    out property <brush> action-gradient: @linear-gradient(90deg, #ff1a8c 0%, #ffd9c4 100%);
+    out property <length> row-height: 56px;
+    out property <length> col-index: 44px;
+    out property <length> col-album: 170px;
+    out property <length> col-date: 130px;
+    out property <length> col-length: 80px;
+    out property <length> bp-album: 760px;             //below this page width the Album column is hidden
+    out property <length> bp-date: 620px;              //below this the Date added column goes too, only the length stays
 }

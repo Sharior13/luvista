@@ -1,0 +1,227 @@
+import { Theme } from "../theme.slint";
+
+//one line of the lyrics
+export struct LyricLine {
+    time: float,           //seconds into the song when the line starts
+    text: string,
+}
+
+//lyrics page, docked between the sidebar and the queue panel
+export component LyricsPanel inherits Rectangle {
+    in property <[LyricLine]> lines;
+    in property <int> current-index;            //line being sung, -1 = song hasn't reached the first line yet
+    in property <bool> open: true;              //when it closes, browsing stops so it reopens on the current line
+    callback closed();
+    callback line-clicked(float);               //start time of the clicked line, to seek there
+
+    background: Theme.background;
+    clip: true;
+
+    changed open => { body.browsing = false; }
+
+    //title and close button
+    Rectangle {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: 60px;
+
+        Text {
+            x: 28px;
+            height: parent.height;
+            text: "Lyrics";
+            color: Theme.text-primary;
+            font-size: 20px;
+            font-weight: 800;
+            vertical-alignment: center;
+        }
+
+        Rectangle {
+            x: parent.width - self.width - 12px;
+            y: (parent.height - self.height) / 2;
+            width: 34px;
+            height: 34px;
+            border-radius: self.width / 2;
+            background: close-touch.has-hover ? Theme.nav-hover : transparent;
+            animate background { duration: Theme.anim-fast; }
+
+            Image {
+                source: @image-url("../icons/close.svg");
+                colorize: Theme.icon-dim;
+                width: 18px;
+                height: 18px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+            }
+            close-touch := TouchArea {
+                mouse-cursor: MouseCursor.pointer;
+                clicked => { root.closed(); }
+            }
+        }
+    }
+
+    //the scrolling lines, clipped to this area
+    body := Rectangle {
+        x: 0px;
+        y: 60px;
+        width: parent.width;
+        height: parent.height - 60px;
+        clip: true;
+
+        property <length> row-height: 80px;
+        property <int> shown: root.current-index < 0 ? 0 : root.current-index;
+        //manual browsing: while on, the view stays where the user scrolled to instead of following the song
+        property <bool> browsing: false;
+        property <float> browse-pos: 0;                              //line shown at the resting spot while browsing
+        property <float> view-pos: self.browsing ? self.browse-pos : self.shown;
+        //the current line rests a bit above the middle, so there is more room for what is coming
+        property <length> anchor: self.height * 0.36 - self.row-height / 2;
+
+        //scroll bar geometry: the thumb shows where in the lyrics the view is, also while it follows the song
+        property <length> bar-top: 10px;
+        property <length> bar-height: self.height - 20px;
+        property <length> thumb-height: Math.max(36px, self.bar-height * Math.min(1.0, self.height / (Math.max(root.lines.length * 1.0, 1.0) * self.row-height)));
+        property <float> ratio: root.lines.length > 1 ? self.view-pos / (root.lines.length - 1) : 0.0;
+
+        //move the view so the scroll bar thumb is centered on y (y measured from the top of the lyrics area)
+        function drag-to(y: length) {
+            self.browsing = true;
+            self.browse-pos = Math.min(Math.max((y - self.bar-top - self.thumb-height / 2) / (self.bar-height - self.thumb-height), 0.0), 1.0) * (root.lines.length - 1);
+        }
+
+        //dy comes from the wheel: positive = scrolled up
+        function scroll-by(dy: length) {
+            if (!self.browsing) {
+                self.browse-pos = self.shown;
+                self.browsing = true;
+            }
+            self.browse-pos = Math.min(Math.max(self.browse-pos - dy / self.row-height, 0.0), (root.lines.length - 1) * 1.0);
+        }
+
+        for line[i] in root.lines : Rectangle {
+            x: 0px;
+            y: body.anchor + (i - body.view-pos) * body.row-height;
+            width: parent.width;
+            height: body.row-height;
+            opacity: Math.max(0.2, 1.0 - Math.abs(i - body.view-pos) * 0.22);
+            animate y { duration: body.browsing ? 140ms : 550ms; easing: ease-out; }
+            animate opacity { duration: body.browsing ? 140ms : 550ms; }
+
+            //text column is at most 720px wide and centered, so very wide windows still read well
+            Text {
+                width: Math.min(parent.width - 56px, 720px);
+                x: (parent.width - self.width) / 2;
+                height: parent.height;
+                text: line.text;
+                wrap: word-wrap;
+                vertical-alignment: center;
+                font-weight: 800;
+                font-size: i == root.current-index ? 30px : 24px;
+                color: i == root.current-index ? Theme.text-primary : Theme.control-muted;
+                animate font-size, color { duration: 300ms; }
+            }
+
+            TouchArea {
+                mouse-cursor: MouseCursor.pointer;
+                clicked => {
+                    body.browsing = false;
+                    root.line-clicked(line.time);
+                }
+                scroll-event(e) => {
+                    body.scroll-by(e.delta-y);
+                    EventResult.accept
+                }
+            }
+        }
+
+        //lines fade out under the title and at the bottom edge
+        Rectangle {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: 40px;
+            background: @linear-gradient(180deg, Theme.background 0%, Theme.background.with-alpha(0) 100%);
+        }
+        Rectangle {
+            x: 0px;
+            y: parent.height - self.height;
+            width: parent.width;
+            height: 56px;
+            background: @linear-gradient(0deg, Theme.background 0%, Theme.background.with-alpha(0) 100%);
+        }
+
+        //scroll bar on the right edge, drag the thumb or click the track
+        if root.lines.length > 1 : Rectangle {
+            x: parent.width - self.width;
+            y: 0px;
+            width: 18px;
+            height: parent.height;
+
+            Rectangle {
+                width: bar-touch.has-hover || bar-touch.pressed ? 8px : 5px;
+                x: parent.width - self.width - 5px;
+                y: body.bar-top + body.ratio * (body.bar-height - body.thumb-height);
+                height: body.thumb-height;
+                border-radius: self.width / 2;
+                background: bar-touch.has-hover || bar-touch.pressed ? #ffffffb3 : #ffffff55;
+                animate width, background { duration: Theme.anim-fast; }
+                animate y { duration: bar-touch.pressed ? 0ms : (body.browsing ? 140ms : 550ms); easing: ease-out; }
+            }
+
+            bar-touch := TouchArea {
+                mouse-cursor: MouseCursor.pointer;
+                pointer-event(e) => {
+                    if (e.kind == PointerEventKind.down) {
+                        body.drag-to(self.mouse-y);
+                    }
+                }
+                moved => {
+                    if (self.pressed) {
+                        body.drag-to(self.mouse-y);
+                    }
+                }
+                scroll-event(e) => {
+                    body.scroll-by(e.delta-y);
+                    EventResult.accept
+                }
+            }
+        }
+
+        //shown while browsing, brings the view back to the line being sung
+        if body.browsing : Rectangle {
+            width: 188px;
+            height: 34px;
+            x: (parent.width - self.width) / 2;
+            y: parent.height - self.height - 18px;
+            border-radius: self.height / 2;
+            background: back-touch.has-hover ? Theme.nav-hover : Theme.primary;
+            animate background { duration: Theme.anim-fast; }
+
+            Text {
+                text: "Back to current line";
+                color: Theme.text-primary;
+                font-size: 14px;
+                font-weight: 700;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            back-touch := TouchArea {
+                mouse-cursor: MouseCursor.pointer;
+                clicked => { body.browsing = false; }
+            }
+        }
+    }
+
+    if root.lines.length == 0 : Text {
+        x: 28px;
+        y: 60px;
+        width: parent.width - 56px;
+        height: parent.height - 60px;
+        text: "No lyrics for this song";
+        color: Theme.control-muted;
+        font-size: 18px;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}

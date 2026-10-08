@@ -1,0 +1,81 @@
+import { Theme } from "../theme.slint";
+
+//"Sort by: Recently added" on the right of a page. clicking it opens a small list of sort options.
+export component SortMenu inherits Rectangle {
+    in property <[string]> options;
+    in-out property <int> selected: 0;
+    callback chosen(int);
+
+    height: 36px;
+    width: 8px + prefix.preferred-width + 6px + label.preferred-width + 8px;
+
+    TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { popup.show(); }
+    }
+
+    prefix := Text {
+        x: 8px;
+        height: parent.height;
+        text: "Sort by:";
+        color: Theme.text-muted;
+        font-size: 15px;
+        font-weight: 700;
+        vertical-alignment: center;
+    }
+
+    label := Text {
+        x: 8px + prefix.preferred-width + 6px;
+        width: self.preferred-width;
+        height: parent.height;
+        text: root.options[root.selected];
+        color: Theme.text-primary;
+        font-size: 15px;
+        font-weight: 700;
+        vertical-alignment: center;
+    }
+
+    popup := PopupWindow {
+        x: root.width - self.width;
+        y: root.height + 4px;
+        width: 190px;
+        height: root.options.length * 40px + 16px;
+        close-policy: PopupClosePolicy.close-on-click-outside;
+
+        Rectangle {
+            background: Theme.primary;
+            border-width: 1px;
+            border-radius: 10px;
+            border-color: Theme.accent;
+
+            VerticalLayout {
+                padding: 8px;
+
+                for option[i] in root.options : Rectangle {
+                    height: 40px;
+                    border-radius: 6px;
+                    background: option-touch.has-hover ? Theme.nav-hover : transparent;
+
+                    Text {
+                        x: 12px;
+                        width: parent.width - 24px;
+                        height: parent.height;
+                        text: option;
+                        color: i == root.selected ? Theme.pink : Theme.text-primary;
+                        font-size: 15px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                    option-touch := TouchArea {
+                        mouse-cursor: MouseCursor.pointer;
+                        clicked => {
+                            root.selected = i;
+                            root.chosen(i);
+                            popup.close();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
