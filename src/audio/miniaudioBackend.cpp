@@ -1,18 +1,21 @@
-// This line makes miniaudio include all its code in THIS file.
-// It must appear in exactly one .cpp file in the whole project.
+// miniaudio's implementation: must be defined in exactly ONE .cpp of the project
 #define MINIAUDIO_IMPLEMENTATION
 #include "miniaudio.h"
 #include "miniaudioBackend.h"
+#include "M4adecoder.h"
+#include <cstdlib>
 
 
 
-// Runs when the speaker is created.
-// Turns the sound machine on. No song is open yet, volume is half.
+// create: start the engine (no song open, volume 0.5)
 MiniaudioBackend::MiniaudioBackend()
 {
     songLoaded = false;
+    bufferLoaded = false;
+    m4aData = NULL;
     volume = 0.5f;
     errorText = "";
+    length = 0.0;
 
     engineReady = (ma_engine_init(NULL, &engine) == MA_SUCCESS);
 
@@ -21,20 +24,39 @@ MiniaudioBackend::MiniaudioBackend()
 }
 
 
-// Runs when the program ends.
-// Closes the song and turns the machine off, like cleaning up the kitchen.
+// destroy: close the song, shut the engine down
 MiniaudioBackend::~MiniaudioBackend()
 {
-    if (songLoaded)
-        ma_sound_uninit(&sound);
+    closeSong();
 
     if (engineReady)
         ma_engine_uninit(&engine);
 }
 
 
-// Opens a song file so it is ready to play.
-// Gives back true if it worked, false if it did not.
+// close the open song and free its memory
+void MiniaudioBackend::closeSong()
+{
+    length = 0.0;
+
+    if (songLoaded) {
+        ma_sound_uninit(&sound);
+        songLoaded = false;
+    }
+
+    if (bufferLoaded) {
+        ma_audio_buffer_uninit(&audioBuffer);
+        bufferLoaded = false;
+    }
+
+    if (m4aData != NULL) {
+        std::free(m4aData);
+        m4aData = NULL;
+    }
+}
+
+
+// load: open a song so it is ready to play; true = ok, false = see last_error()
 bool MiniaudioBackend::load(const std::string& path)
 {
     if (!engineReady) {
@@ -43,21 +65,63 @@ bool MiniaudioBackend::load(const std::string& path)
     }
 
     // close the old song first
-    if (songLoaded) {
-        ma_sound_uninit(&sound);
-        songLoaded = false;
-    }
+    closeSong();
 
-    // try to open the new song
-    ma_result result = ma_sound_init_from_file(&engine, path.c_str(), 0, NULL, NULL, &sound);
+    ma_result result;
+
+    if (M4a::isM4a(path)) {
+        // m4a: decode with Windows into memory first, then play from there
+        short* pcm = NULL;
+        unsigned long long frames = 0;
+        unsigned int channels = 0;
+        unsigned int rate = 0;
+        std::string why;
+
+        if (!M4a::decode(path, &pcm, &frames, &channels, &rate, why)) {
+            errorText = "Cannot open m4a: " + why;
+            return false;
+        }
+
+        ma_audio_buffer_config bufferConfig =
+            ma_audio_buffer_config_init(ma_format_s16, channels, frames, pcm, NULL);
+        bufferConfig.sampleRate = rate;
+
+        result = ma_audio_buffer_init(&bufferConfig, &audioBuffer);
+        if (result != MA_SUCCESS) {
+            std::free(pcm);
+            errorText = std::string("Cannot open m4a: ") + ma_result_description(result);
+            return false;
+        }
+
+        m4aData = pcm;
+        bufferLoaded = true;
+
+        result = ma_sound_init_from_data_source(&engine, &audioBuffer, 0, NULL, &sound);
+        if (result != MA_SUCCESS) {
+            closeSong();
+            errorText = std::string("Cannot open m4a: ") + ma_result_description(result);
+            return false;
+        }
+    }
+    else {
+        result = ma_sound_init_from_file(&engine, path.c_str(), 0, NULL, NULL, &sound);
+    }
 
     if (result != MA_SUCCESS) {
         errorText = std::string("Cannot open song: ") + ma_result_description(result);
         return false;
     }
 
-    // the volume is squared so each step sounds like an even change
+    // squared so each volume step sounds even
     ma_sound_set_volume(&sound, volume * volume);
+
+    // Measure the length NOW, while the sound is still stopped. Asking miniaudio
+    // for the length while the song is playing crashes on files without a Xing
+    // header (the shine recordings): that call scans and seeks the file while the
+    // audio thread is decoding it. Doing it once here keeps duration() a plain read.
+    float seconds = 0.0f;
+    ma_sound_get_length_in_seconds(&sound, &seconds);
+    length = (double)seconds;
 
     songLoaded = true;
     errorText = "";
@@ -65,7 +129,7 @@ bool MiniaudioBackend::load(const std::string& path)
 }
 
 
-// Presses the play button.
+// play
 void MiniaudioBackend::play()
 {
     if (songLoaded)
@@ -73,7 +137,7 @@ void MiniaudioBackend::play()
 }
 
 
-// Presses the pause button. The song waits at the same place.
+// pause
 void MiniaudioBackend::pause()
 {
     if (songLoaded)
@@ -81,7 +145,7 @@ void MiniaudioBackend::pause()
 }
 
 
-// Jumps to a second in the song. seek(30) goes to second 30.
+// seek (jump to a second)
 void MiniaudioBackend::seek(double seconds)
 {
     if (!songLoaded)
@@ -101,6 +165,7 @@ void MiniaudioBackend::seek(double seconds)
 }
 
 
+// volume (0..1; the squared value is what is applied)
 void MiniaudioBackend::set_volume(float v)
 {
     if (v < 0.0f) v = 0.0f;
@@ -113,7 +178,7 @@ void MiniaudioBackend::set_volume(float v)
 }
 
 
-// How many seconds of the song we have heard so far.
+// seconds played so far
 double MiniaudioBackend::position()
 {
     if (!songLoaded)
@@ -125,19 +190,18 @@ double MiniaudioBackend::position()
 }
 
 
-// How long the whole song is, in seconds.
+// The total seconds, from the value measured in load(). Never asks miniaudio
+// while the song is playing - that is the call that crashed on rec_1.mp3.
 double MiniaudioBackend::duration()
 {
     if (!songLoaded)
         return 0.0;
 
-    float seconds = 0.0f;
-    ma_sound_get_length_in_seconds(&sound, &seconds);
-    return seconds;
+    return length;
 }
 
 
-// Yes if the song is playing right now.
+// playing?
 bool MiniaudioBackend::is_playing()
 {
     if (!songLoaded)
@@ -147,8 +211,8 @@ bool MiniaudioBackend::is_playing()
 }
 
 
-// The last problem, or "" if there was none.
+// last problem ("" = none)
 std::string MiniaudioBackend::last_error()
 {
     return errorText;
-}
+}

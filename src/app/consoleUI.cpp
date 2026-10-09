@@ -6,12 +6,12 @@
 #include <windows.h>
 
 
-// The waiter is given the DJ to talk to.
+// the screens get the player to talk to
 ConsoleUI::ConsoleUI(PlayerController& p) : player(p)
 {
 }
 
-// Asks for search words. Empty answer = no filter (show everything).
+// search words (empty = show all)
 std::string ConsoleUI::askSearch()
 {
     std::cout << "Search (empty = show all): ";
@@ -22,7 +22,7 @@ std::string ConsoleUI::askSearch()
 }
 
 
-// One line of text for a song: Title  |  Artist  |  Album
+// "Title  |  Artist  |  Album" for one row
 std::string ConsoleUI::describe(int songNumber)
 {
     return player.songTitle(songNumber) + "  |  " +
@@ -31,7 +31,7 @@ std::string ConsoleUI::describe(int songNumber)
 }
 
 
-// Clears the screen and draws everything again.
+// clear the screen and redraw everything
 void ConsoleUI::draw(const std::string& message)
 {
     system("cls");
@@ -43,6 +43,9 @@ void ConsoleUI::draw(const std::string& message)
 
     if (player.isFavorite())
         std::cout << " [Favorite]";
+
+    if (recorder.isRecording())
+        std::cout << " [RECORDING]";
 
     std::cout << "  (" << player.currentIndex()
         << "/" << player.total() << ")\n";
@@ -70,6 +73,7 @@ void ConsoleUI::draw(const std::string& message)
         << "[T] Add this song to a playlist\n"
         << "[D] Delete playlist / remove song\n"
         << "[M] My playlists\n"
+        << "[O] Record on / off (microphone)\n"
         << "[X] Exit\n"
         << "-----------------------\n";
 
@@ -83,7 +87,7 @@ void ConsoleUI::draw(const std::string& message)
 }
 
 
-// Shows the favorite songs (names only).
+// favorites screen
 void ConsoleUI::showFavorites()
 {
     system("cls");
@@ -126,7 +130,7 @@ void ConsoleUI::showFavorites()
 }
 
 
-// Shows the recently played songs, newest first (names only).
+// recently played screen
 void ConsoleUI::showRecent()
 {
     system("cls");
@@ -168,7 +172,7 @@ void ConsoleUI::showRecent()
     _getch();
 }
 
-// Reads one line and turns it into a number. Gives 0 if it is not a number.
+// one line -> a number (0 if it is not a number)
 static int readNumber()
 {
     std::string line;
@@ -177,7 +181,7 @@ static int readNumber()
 }
 
 
-// Asks for a name and makes a new playlist. Gives back a message for the screen.
+// ask a name, create the playlist
 std::string ConsoleUI::createPlaylistScreen()
 {
     system("cls");
@@ -198,7 +202,7 @@ std::string ConsoleUI::createPlaylistScreen()
 }
 
 
-// Shows the playlists, asks which one, and adds the song playing now.
+// pick a playlist, add the song playing now
 std::string ConsoleUI::addToPlaylistScreen()
 {
     system("cls");
@@ -234,10 +238,8 @@ std::string ConsoleUI::addToPlaylistScreen()
 }
 
 
-// Asks what to delete:
-// 1 = delete a whole playlist, 2 = take the song playing now out of a playlist,
-// 3 = take any song out of a playlist, 4 = empty the favorites list,
-// 5 = forget a song (the file stays on disk).
+// Delete menu: 1 = whole playlist, 2 = this song out of a playlist,
+// 3 = any song out of a playlist, 4 = clear all favorites, 5 = forget a song.
 std::string ConsoleUI::deleteScreen()
 {
     system("cls");
@@ -255,7 +257,7 @@ std::string ConsoleUI::deleteScreen()
     if (choice < 1 || choice > 5)
         return "Cancelled";
 
-    // Option 4 does not need a playlist.
+    // option 4 needs no playlist
     if (choice == 4) {
         if (player.favoriteCount() == 0)
             return "Favorites are already empty";
@@ -316,7 +318,7 @@ std::string ConsoleUI::deleteScreen()
         return "Could not remove it";
     }
 
-    // choice 5: forget one song from the whole library
+    // 5: forget one song from the whole library
     if (choice == 5) {
         if (player.total() == 0)
             return "The library is empty";
@@ -354,7 +356,7 @@ std::string ConsoleUI::deleteScreen()
 }
 
 
-// Searches every song. Pick a number from the results to play it.
+// search all songs, pick one to play
 std::string ConsoleUI::searchSongsScreen()
 {
     system("cls");
@@ -394,7 +396,7 @@ std::string ConsoleUI::searchSongsScreen()
 }
 
 
-// Shows all playlists. Pick one to see its songs.
+// list playlists, open one to see its songs
 void ConsoleUI::showPlaylists()
 {
     while (true) {
@@ -464,6 +466,26 @@ void ConsoleUI::showPlaylists()
     }
 }
 
+// record on / off: saves rec_1.mp3, rec_2.mp3, ... in the folder
+std::string ConsoleUI::toggleRecording(const std::string& folder)
+{
+    if (recorder.isRecording()) {
+        std::string saved = recorder.stop();
+
+        if (saved == "")
+            return "Could not save the recording: " + recorder.lastError();
+
+        return "Saved: " + saved + "  (restart the app to see it in the library)";
+    }
+
+    if (recorder.start(Recorder::nextRecordingPath(folder)))
+        return "Recording... press O again to stop";
+
+    return "Could not start recording: " + recorder.lastError();
+}
+
+
+// main loop: scan the folder, then run until X is pressed
 void ConsoleUI::run(const std::string& folder)
 {
     if (!player.openFolder(folder)) {
@@ -573,7 +595,12 @@ void ConsoleUI::run(const std::string& folder)
                 message = "";
                 break;
 
+            case 'O':
+                message = toggleRecording(folder);
+                break;
+
             case 'X':
+                recorder.stop();   // never leave a recording file open
                 system("cls");
                 std::cout << "Bye!" << std::endl;
                 return;
