@@ -2,6 +2,7 @@
 #include "appPaths.h"
 #include <fstream>
 #include <filesystem>
+#include <chrono>
 #include <cctype>
 #include <cstdlib>
 #include <system_error>
@@ -79,6 +80,240 @@ static void cutName(const std::string& fileName, std::string& artist, std::strin
 }
 
 
+// What we can read from the tags inside a music file.
+struct Tags {
+    std::string title;
+    std::string artist;
+    std::string album;
+};
+
+// ID3v2 layout (what mp3 files use):
+//   10 byte header:  "ID3", version, revision, flags, size (4 bytes, 7 bits each)
+//   then frames:     id, size, flags, data.   Title = TIT2, Artist = TPE1, Album = TALB.
+// Version 2.2 uses 3-letter ids (TT2, TP1, TAL) and a 3 byte size.
+
+
+// Size stored with only 7 bits in each byte ("synchsafe").
+static unsigned int syncsafe(const unsigned char* b)
+{
+    return ((unsigned int)(b[0] & 0x7F) << 21) |
+        ((unsigned int)(b[1] & 0x7F) << 14) |
+        ((unsigned int)(b[2] & 0x7F) << 7) |
+        (unsigned int)(b[3] & 0x7F);
+}
+
+
+// Normal big-endian number of 3 or 4 bytes.
+static unsigned int bigEndian(const unsigned char* b, int bytes)
+{
+    unsigned int n = 0;
+
+    for (int i = 0; i < bytes; i++)
+        n = (n << 8) | b[i];
+
+    return n;
+}
+
+
+// Adds one character (a Unicode number) to a UTF-8 string.
+static void addChar(std::string& out, unsigned int c)
+{
+    if (c < 0x80) {
+        out += (char)c;
+    }
+    else if (c < 0x800) {
+        out += (char)(0xC0 | (c >> 6));
+        out += (char)(0x80 | (c & 0x3F));
+    }
+    else if (c < 0x10000) {
+        out += (char)(0xE0 | (c >> 12));
+        out += (char)(0x80 | ((c >> 6) & 0x3F));
+        out += (char)(0x80 | (c & 0x3F));
+    }
+    else {
+        out += (char)(0xF0 | (c >> 18));
+        out += (char)(0x80 | ((c >> 12) & 0x3F));
+        out += (char)(0x80 | ((c >> 6) & 0x3F));
+        out += (char)(0x80 | (c & 0x3F));
+    }
+}
+
+
+// Turns the text of a frame into UTF-8. The first byte says how the text is written:
+// 0 = ISO-8859-1, 1 = UTF-16 with a mark, 2 = UTF-16 big-endian, 3 = UTF-8.
+// Only the first value is kept (a tag can hold several, split by a zero).
+static std::string decodeText(const unsigned char* data, unsigned int size)
+{
+    if (size < 2)
+        return "";
+
+    int encoding = data[0];
+    data++;
+    size--;
+
+    std::string out;
+
+    if (encoding == 0 || encoding == 3) {
+        for (unsigned int i = 0; i < size; i++) {
+            if (data[i] == 0)
+                break;
+
+            if (encoding == 3)
+                out += (char)data[i];
+            else
+                addChar(out, data[i]);          // Latin-1 letter -> UTF-8
+        }
+    }
+    else if (encoding == 1 || encoding == 2) {
+        bool bigEnd = (encoding == 2);
+        unsigned int i = 0;
+
+        if (encoding == 1 && size >= 2) {       // the mark tells which end comes first
+            if (data[0] == 0xFF && data[1] == 0xFE) { bigEnd = false; i = 2; }
+            else if (data[0] == 0xFE && data[1] == 0xFF) { bigEnd = true; i = 2; }
+        }
+
+        for (; i + 1 < size; i += 2) {
+            unsigned int unit = bigEnd ? (data[i] << 8) | data[i + 1]
+                : (data[i + 1] << 8) | data[i];
+
+            if (unit == 0)
+                break;
+
+            // two units together make one big character (surrogate pair)
+            if (unit >= 0xD800 && unit < 0xDC00 && i + 3 < size) {
+                unsigned int next = bigEnd ? (data[i + 2] << 8) | data[i + 3]
+                    : (data[i + 3] << 8) | data[i + 2];
+
+                if (next >= 0xDC00 && next < 0xE000) {
+                    unit = 0x10000 + ((unit - 0xD800) << 10) + (next - 0xDC00);
+                    i += 2;
+                }
+            }
+
+            addChar(out, unit);
+        }
+    }
+
+    // the song list uses tabs and new lines to split things, so none may stay inside the text
+    for (char& c : out) {
+        if (c == '\t' || c == '\n' || c == '\r')
+            c = ' ';
+    }
+
+    return out;
+}
+
+
+static bool readTags(const std::string& path, Tags& out)
+{
+    std::ifstream file(path, std::ios::binary);
+
+    if (!file)
+        return false;
+
+    unsigned char header[10];
+    file.read((char*)header, 10);
+
+    if (file.gcount() != 10 || header[0] != 'I' || header[1] != 'D' || header[2] != '3')
+        return false;                       // no ID3v2 tag at the start
+
+    int version = header[3];                // 2, 3 or 4
+
+    if (version < 2 || version > 4)
+        return false;
+
+    unsigned int tagSize = syncsafe(header + 6);
+
+    if (tagSize == 0 || tagSize > 16 * 1024 * 1024)
+        return false;                       // empty, or too big to be sane
+
+    std::string tag(tagSize, '\0');
+    file.read(&tag[0], tagSize);
+    tag.resize((size_t)file.gcount());
+
+    const unsigned char* t = (const unsigned char*)tag.data();
+    unsigned int end = (unsigned int)tag.size();
+    unsigned int pos = 0;
+
+    // skip the extended header if there is one
+    if (header[5] & 0x40) {
+        if (version == 4 && end >= 4)
+            pos = syncsafe(t);
+        else if (version == 3 && end >= 4)
+            pos = bigEndian(t, 4) + 4;
+    }
+
+    int idLength = (version == 2) ? 3 : 4;
+    int headLength = (version == 2) ? 6 : 10;
+
+    while (pos + headLength <= end) {
+        if (t[pos] == 0)
+            break;                          // padding: no more frames
+
+        std::string id((const char*)t + pos, idLength);
+
+        unsigned int size;
+
+        if (version == 2)
+            size = bigEndian(t + pos + 3, 3);
+        else if (version == 3)
+            size = bigEndian(t + pos + 4, 4);
+        else
+            size = syncsafe(t + pos + 4);
+
+        unsigned int dataStart = pos + headLength;
+
+        if (size > end - dataStart)
+            break;                          // frame says it is bigger than the tag: stop
+
+        if (id == "TIT2" || id == "TT2")
+            out.title = decodeText(t + dataStart, size);
+        else if (id == "TPE1" || id == "TP1")
+            out.artist = decodeText(t + dataStart, size);
+        else if (id == "TALB" || id == "TAL")
+            out.album = decodeText(t + dataStart, size);
+
+        pos = dataStart + size;
+    }
+
+    return true;
+}
+
+
+// The time right now, in seconds since 1970.
+static long long nowSeconds()
+{
+    return (long long)std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
+
+// Looks inside the file for its real title, artist and album.
+// Whatever the file does not have stays as it was. A missing album becomes "Unknown album".
+static void fillFromTags(const std::string& path,
+    std::string& title, std::string& artist, std::string& album)
+{
+    Tags tags;
+
+    if (readTags(path, tags)) {
+        if (tags.title != "")
+            title = tags.title;
+
+        if (tags.artist != "")
+            artist = tags.artist;
+
+        album = tags.album;
+    }
+    else {
+        album = "";
+    }
+
+    if (album == "")
+        album = "Unknown album";
+}
+
+
 // Starts with zero songs, then counts what is already in the notebook from last time.
 TrackList::TrackList()
 {
@@ -148,9 +383,25 @@ bool TrackList::scan(const std::string& folderPath)
 
         while (std::getline(notebook, line)) {
             std::error_code e;
+            std::string path = piece(line, 1);
 
-            if (line != "" && fs::exists(piece(line, 1), e))
-                kept += line + "\n";
+            if (line == "" || !fs::exists(path, e))
+                continue;
+
+            std::string title = piece(line, 2);
+            std::string artist = piece(line, 3);
+            std::string album = piece(line, 4);
+            std::string added = piece(line, 5);
+
+            // an old line ("-" album) has not been read yet: fill it now, the id stays the same
+            if (album == "-" || album == "")
+                fillFromTags(path, title, artist, album);
+
+            if (added == "")
+                added = std::to_string(nowSeconds());
+
+            kept += piece(line, 0) + "\t" + path + "\t" + title + "\t" +
+                artist + "\t" + album + "\t" + added + "\n";
         }
     }   // the notebook is closed here, so we can write to it now
 
@@ -169,17 +420,46 @@ bool TrackList::scan(const std::string& folderPath)
             std::string path = it->path().string();
 
             if (find(path) == 0) {                        // a new song
-                std::string artist, title;
-                cutName(it->path().stem().string(), artist, title);
+                std::string artist, title, album;
+                cutName(it->path().stem().string(), artist, title);   // the file name is the fallback
+                fillFromTags(path, title, artist, album);             // the tags in the file win
 
                 std::ofstream notebook(AppPaths::indexFile(), std::ios::app);   // add at the end
                 notebook << nextId << '\t' << path << '\t' << title << '\t'
-                    << artist << '\t' << "-" << '\n';
+                    << artist << '\t' << album << '\t' << nowSeconds() << '\n';
 
                 nextId++;
             }
         }
     }
+
+    countSongs();
+    return true;
+}
+
+
+// Takes song number n out of the notebook. The music file itself stays on disk.
+bool TrackList::removeSong(int n)
+{
+    if (n < 1 || n > count)
+        return false;
+
+    std::ifstream in(AppPaths::indexFile());
+    std::string kept = "";
+    std::string line;
+    int number = 0;
+
+    while (std::getline(in, line)) {
+        number++;
+
+        if (number != n && line != "")
+            kept += line + "\n";   // keep every line except song n
+    }
+    in.close();
+
+    std::ofstream out(AppPaths::indexFile());   // this erases the old notebook
+    out << kept;
+    out.close();   // finish writing BEFORE counting, so countSongs sees the new file
 
     countSongs();
     return true;
@@ -216,11 +496,10 @@ std::string TrackList::getAlbum(int n) const
 }
 
 
-// "Date added" is not stored yet, so this gives 0 for every song.
-// (Nothing in the console screens uses it. It only exists so the linker finds it.)
+// When the song was added to the library (seconds since 1970). 0 if there is no such song.
 long long TrackList::getAdded(int n) const
 {
-    return 0;
+    return std::atoll(piece(lineNumber(n), 5).c_str());
 }
 
 
@@ -269,7 +548,8 @@ bool TrackList::matches(int n, const std::string& query) const
     std::string wanted = lowerCase(query);
 
     return lowerCase(getTitle(n)).find(wanted) != std::string::npos ||
-        lowerCase(getArtist(n)).find(wanted) != std::string::npos;
+        lowerCase(getArtist(n)).find(wanted) != std::string::npos ||
+        lowerCase(getAlbum(n)).find(wanted) != std::string::npos;
 }
 
 

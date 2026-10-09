@@ -44,6 +44,10 @@ void Favorite::remove(int id) {
     outFile << kept;
 }
 
+void Favorite::clear() {
+    std::ofstream File(favoritesFile());   // opening to write erases everything
+}
+
 int Favorite::count() const {
     std::ifstream File(favoritesFile());
     std::string line;

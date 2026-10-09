@@ -16,6 +16,12 @@ public:
     MiniaudioBackend();
     ~MiniaudioBackend();
 
+    // No copying allowed: the object holds a live audio engine by value.
+    // A copy would share the same engine memory, and two destructors
+    // shutting it down = crash. (This turns the crash into a compile error.)
+    MiniaudioBackend(const MiniaudioBackend&) = delete;
+    MiniaudioBackend& operator=(const MiniaudioBackend&) = delete;
+
     bool load(const std::string& path) override;
     void play() override;
     void pause() override;

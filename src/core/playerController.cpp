@@ -271,6 +271,36 @@ std::string PlayerController::songTitle(int n) const
 }
 
 
+std::string PlayerController::songArtist(int n) const
+{
+    return tracks.getArtist(n);
+}
+
+
+std::string PlayerController::songAlbum(int n) const
+{
+    return tracks.getAlbum(n);
+}
+
+
+int PlayerController::favoriteSongNumber(int row) const
+{
+    return tracks.positionOfId(favorites.get(row));
+}
+
+
+int PlayerController::recentSongNumber(int row) const
+{
+    return tracks.positionOfId(recent.get(row));
+}
+
+
+int PlayerController::playlistSongNumber(const std::string& name, int row) const
+{
+    return tracks.positionOfId(playlists.getSong(name, row));
+}
+
+
 // The name of the song that comes after the one playing now.
 std::string PlayerController::nextSongTitle() const
 {
@@ -433,6 +463,65 @@ bool PlayerController::addCurrentToPlaylist(const std::string& name)
 bool PlayerController::addToPlaylist(const std::string& name, int songNumber)
 {
     return playlists.addSong(name, tracks.getId(songNumber));
+}
+
+// Takes the song that is playing now out of the playlist.
+bool PlayerController::removeCurrentFromPlaylist(const std::string& name)
+{
+    if (current == 0)
+        return false;
+
+    return playlists.removeSong(name, tracks.getId(current));
+}
+
+// Takes song row n (1, 2, 3 ...) out of the playlist. The song stays in the library.
+bool PlayerController::removeFromPlaylistRow(const std::string& name, int row)
+{
+    if (row < 1)
+        return false;
+
+    return playlists.removeSong(name, playlists.getSong(name, row));
+}
+
+// Empties the whole favorites list.
+void PlayerController::clearFavorites()
+{
+    favorites.clear();
+}
+
+// Forgets a song everywhere: the library list, favorites, recents and every playlist.
+// The music file itself stays on disk and can be found again by scanning the folder.
+bool PlayerController::removeSongFromLibrary(int songNumber)
+{
+    if (songNumber < 1 || songNumber > tracks.getCount())
+        return false;
+
+    int id = tracks.getId(songNumber);
+
+    // stop the song first if it is the one playing
+    if (current == songNumber) {
+        audio.pause();
+        current = 0;
+        paused = false;
+        trackName = "";
+    }
+    else if (current > songNumber) {
+        current--;              // the songs after the removed one move up one number
+    }
+
+    if (id != 0) {
+        favorites.remove(id);
+        recent.remove(id);
+        playlists.removeSongEverywhere(id);
+    }
+
+    return tracks.removeSong(songNumber);
+}
+
+// Deletes a whole playlist (its name and its songs).
+bool PlayerController::deletePlaylist(const std::string& name)
+{
+    return playlists.remove(name);
 }
 
 int PlayerController::playlistSongCount(const std::string& name) const
