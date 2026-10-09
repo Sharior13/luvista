@@ -4,8 +4,7 @@
 #include "core/playerController.h"
 #include "app/consoleUI.h"
 
-const std::string MUSIC_FOLDER = "C:/Drivers";   // forward slashes avoid "\\D" escape warnings
-
+const std::string MUSIC_FOLDER = "C:/Users/LENOVO/Documents/CODEs/Music Player/luvista/src/audio";
 int main()
 {
     MiniaudioBackend audio;                  
