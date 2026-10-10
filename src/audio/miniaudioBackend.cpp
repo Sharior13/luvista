@@ -1,4 +1,9 @@
 // miniaudio's implementation: must be defined in exactly ONE .cpp of the project
+// It must appear in exactly one .cpp file in the whole project.
+// Windows: miniaudio sets up COM on the thread that creates the engine. By default that is
+// "multithreaded", which clashes with the Slint window (it needs "single threaded", 2) and
+// crashes with RPC_E_CHANGED_MODE. Must come before the line below.
+#define MA_COINIT_VALUE 2
 #define MINIAUDIO_IMPLEMENTATION
 #include "miniaudio.h"
 #include "miniaudioBackend.h"
@@ -8,6 +13,7 @@
 
 
 // create: start the engine (no song open, volume 0.5)
+// Turns the sound machine on. No song is open yet, volume is half.
 MiniaudioBackend::MiniaudioBackend()
 {
     songLoaded = false;
@@ -25,6 +31,7 @@ MiniaudioBackend::MiniaudioBackend()
 
 
 // destroy: close the song, shut the engine down
+// Closes the song and turns the machine off, like cleaning up the kitchen.
 MiniaudioBackend::~MiniaudioBackend()
 {
     closeSong();
@@ -91,13 +98,13 @@ bool MiniaudioBackend::load(const std::string& path)
             std::free(pcm);
             errorText = std::string("Cannot open m4a: ") + ma_result_description(result);
             return false;
-        }
+    }
 
         m4aData = pcm;
         bufferLoaded = true;
 
         result = ma_sound_init_from_data_source(&engine, &audioBuffer, 0, NULL, &sound);
-        if (result != MA_SUCCESS) {
+    if (result != MA_SUCCESS) {
             closeSong();
             errorText = std::string("Cannot open m4a: ") + ma_result_description(result);
             return false;
@@ -215,4 +222,4 @@ bool MiniaudioBackend::is_playing()
 std::string MiniaudioBackend::last_error()
 {
     return errorText;
-}
+}

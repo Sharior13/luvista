@@ -16,9 +16,9 @@ export struct MockTrack {
 //state.slint (AppState) reads from this file as the *default* value of each property.
 //when the C++ backend sets a property, that default is replaced automatically, so mock and real data can be mixed while the backend is built up piece by piece.
 export global MockData {
-    in-out property <bool> enabled: true;
-    in-out property <bool> home-feed: true;
-    in-out property <bool> library-feed: true;
+    in-out property <bool> enabled: false;
+    in-out property <bool> home-feed: false;
+    in-out property <bool> library-feed: false;
 
     //profile
     out property <string> profile-initial: "A";     //first letter of the profile name

@@ -14,7 +14,13 @@ namespace fs = std::filesystem;
 // It only looks at the ending of the name, like ".mp3".
 static bool isMusic(const fs::path& p)
 {
-    std::string ending = p.extension().string();
+    std::string ending;
+    try {
+        ending = p.extension().string();
+    }
+    catch (const std::system_error&) {
+        return false;   // an ending we cannot read as plain text is not ".mp3" etc.
+    }
 
     // make all letters small, so ".MP3" and ".mp3" are the same
     for (char& c : ending)
@@ -417,11 +423,18 @@ bool TrackList::scan(const std::string& folderPath)
     for (; !problem && it != fs::recursive_directory_iterator(); it.increment(problem)) {
 
         if (it->is_regular_file(problem) && isMusic(it->path())) {
-            std::string path = it->path().string();
+            std::string path, name;
+            try {
+                path = it->path().string();
+                name = it->path().stem().string();
+            }
+            catch (const std::system_error&) {
+                continue;   // the file name has letters the plain-text string cannot hold: skip it
+            }
 
             if (find(path) == 0) {                        // a new song
                 std::string artist, title, album;
-                cutName(it->path().stem().string(), artist, title);   // the file name is the fallback
+                cutName(name, artist, title);                         // the file name is the fallback
                 fillFromTags(path, title, artist, album);             // the tags in the file win
 
                 std::ofstream notebook(AppPaths::indexFile(), std::ios::app);   // add at the end
