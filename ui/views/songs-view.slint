@@ -19,7 +19,7 @@ export component SongsView inherits Rectangle {
         subtitle: Format.songs(root.songs.length, root.total-seconds);
         header-icon: @image-url("../icons/music.svg");
         search-placeholder: "Search All Music";
-        length-label: "Time";
+        length-label: "Length";
         songs: root.songs;
         empty-text: "No songs found. Go to settings to ";
         empty-link: "add a new folder";
