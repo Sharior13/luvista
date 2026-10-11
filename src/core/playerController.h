@@ -1,11 +1,13 @@
 #pragma once
+#include <random>
 #include <string>
+#include <vector>
 #include "../audio/audioBackend.h"
 #include "trackList.h"
 #include "favorites.h"
-#include "recentList.h"
+#include "recentlist.h"
 #include "playlist.h"
-#include "PlayQueue.h"
+#include "playcounts.h"
 
 class PlayerController {
 private:
@@ -14,27 +16,31 @@ private:
     Favorite favorites;
     RecentList recent;
     Playlists playlists;
-    PlayQueue queue;             // the songs waiting to play next
+    PlayCounts counts;
 
-    int current;
+    int current;                    // song number of the playing song, 0 = none
+    int currentId;                  // its id. Numbers can move when the library changes, ids never do
     bool paused;
     int volumePercent;
     std::string trackName;
     std::string errorText;
 
-    // Shuffle: one fixed, random way through the library.
-    // order[] holds the song numbers 1..N in shuffled order,
-    // orderAt is our place in that order (orderAt = -1 means "not started yet").
-    bool shuffle;
-    int repeatMode;                  // 0 = off, 1 = all, 2 = one
-    int order[TrackList::capacity];
-    int orderSize;               // how many songs are in that order
-    int orderAt;                 // where we are in that order
+    // The queue. It holds song ids, so it survives the library changing under it.
+    std::vector<int> baseQueue;     // the songs in the order of the list they came from
+    std::vector<int> order;         // the same songs in the order they will play (shuffled if shuffle is on)
+    int pos;                        // place of the playing song in `order`, -1 = none
+    std::string queueName;          // "All Songs", "Favorites", a playlist name ...
+    bool shuffleOn;
+    bool repeatOne;
+    bool counted;                   // this play was already added to the play counts
+    std::mt19937 rng;
 
-    void playTrack(int n, int step);
-    void buildShuffleOrder();    // makes a new random way through the library
-    int  placeInOrder(int n) const;   // where song n sits in that order (-1 = not there)
-    bool atEndOfLibrary() const;      // the next next() would wrap around
+    void playAt(int place, int step);                                   // plays order[place]. Skips songs that will not open
+    void setQueue(const std::vector<int>& songNumbers, const std::string& name, int startId);
+    void shuffleOrder(int firstId);                                     // shuffles `order`, with firstId (if any) kept at the front
+    void ensureQueue();                                                 // no queue yet: use the whole library
+    void findPos();                                                     // works out `pos` again from currentId
+    void dropFromQueue(int id);
 
 public:
     PlayerController(AudioBackend& a, TrackList& t);
@@ -43,8 +49,27 @@ public:
 
     void next();
     void previous();
-    void playSong(int n);
-    bool playFilePath(const std::string& path, const std::string& name);   // a file outside the library (a recording)
+    void playSong(int n);               // plays song n, and the queue becomes the whole library
+
+    // Play a list. `songNumbers` is the list as the screen shows it, `row` the one that was clicked
+    // (0 = first), `name` is shown above the queue ("Favorites"). The rest of the list becomes the queue.
+    void playQueue(const std::vector<int>& songNumbers, int row, const std::string& name);
+    void playQueueShuffled(const std::vector<int>& songNumbers, const std::string& name);   // shuffle on, random first song
+    void playQueueRow(int row);         // a row of the queue panel (0 = first)
+
+    void setShuffle(bool on);           // reorders the queue, the playing song stays where it is
+    bool isShuffle() const;
+    void setRepeat(bool on);            // true = the song plays again when it ends (it does not loop on "next")
+    bool isRepeat() const;
+
+    int queueCount() const;             // songs in the queue, in play order, the playing one included
+    int queueSongNumber(int row) const; // song number of a queue row (0 if that song is gone)
+    int queuePosition() const;          // row of the playing song, -1 if nothing is playing
+    std::string queueContext() const;   // where the queue came from, "" if there is no queue
+
+    std::vector<int> mostPlayedSongNumbers(int most) const;   // the most played songs, top first
+
+    void stop();                        // stops the music and forgets the queue (logging out)
 
     void pause();
     void resume();
@@ -52,44 +77,35 @@ public:
     void restart();
     void forward(double seconds = 10);
     void back(double seconds = 10);
-    void seekTo(double seconds);        // the seek bar: jump to any second
+    void seekTo(double seconds);        
     void update();
 
     void volumeUp();
     void volumeDown();
     void setVolume(int percent);       
 
-    // Queue: the line of songs waiting to play next (the queue wins over shuffle).
-    bool addToQueue(int songNumber);      // put a song at the end of the line
-    void clearQueue();                    // the line becomes empty
-    int  queueCount() const;              // how many songs are still waiting
-    int  queueSongNumber(int row) const;  // song number of queue row (0 = gone from library)
-    std::string queueTitle(int row) const;
-
-    // Shuffle: on = walk through all songs in a random order, each one once.
-    void toggleShuffle();
-    bool isShuffleOn() const;
-
-    // Repeat: 0 = off (stops at the end), 1 = all (wraps around), 2 = one (same song again).
-    void toggleRepeat();
-    int  repeat() const;
-
     void toggleFavorite();
     bool isFavorite() const;
     int favoriteCount() const;
+    std::string favorite(int n) const;
+    std::string favoriteTitle(int n) const;
 
     int recentCount() const;
+    std::string recentSong(int n) const;
+    std::string recentTitle(int n) const;
 
     bool createPlaylist(const std::string& name);
     int playlistCount() const;
     std::string playlistName(int n) const;
     bool addCurrentToPlaylist(const std::string& name);
-    bool addToPlaylist(const std::string& name, int songNumber);   // the "+" on a row
+    bool addToPlaylist(const std::string& name, int songNumber);   // NEW: the "+" on a row
     bool removeCurrentFromPlaylist(const std::string& name);       // takes the playing song out of a playlist
     bool removeFromPlaylistRow(const std::string& name, int row);  // takes song row n out of a playlist
     bool deletePlaylist(const std::string& name);                  // deletes a whole playlist
     void clearFavorites();                                         // empties the favorites list
     bool removeSongFromLibrary(int songNumber);                    // forgets a song (the file stays on disk)
+    std::string playlistArt(const std::string& name) const;                    // the picture file chosen for a playlist, "" if none
+    bool setPlaylistArt(const std::string& name, const std::string& imagePath); // copies a png/jpg in as the playlist's picture
     int playlistSongCount(const std::string& name) const;
     std::string playlistSongTitle(const std::string& name, int n) const;
 
@@ -118,6 +134,6 @@ public:
     int recentSongNumber(int row) const;
     int playlistSongNumber(const std::string& name, int row) const;
 
-    std::string nextSongTitle() const;          // "Next:" line: queue first, then shuffle, then the list
-    long long songAdded(int n) const;           // "Date added" column
-};
+    std::string nextSongTitle() const;          // NEW: "Next in queue" card
+    long long songAdded(int n) const;           // NEW: "Date added" column
+};

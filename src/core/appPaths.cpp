@@ -5,6 +5,8 @@
 
 namespace fs = std::filesystem;
 
+static std::string activeName = "guest";
+
 
 // Makes the folder if it is not there yet, then gives back its address.
 static std::string makeFolder(const fs::path& p)
@@ -17,16 +19,26 @@ static std::string makeFolder(const fs::path& p)
 
 std::string AppPaths::root()
 {
+    std::string where = ".";          // if the system gives no address, use the current folder
+
+#ifdef _WIN32
     char* base = nullptr;
     size_t size = 0;
     _dupenv_s(&base, &size, "LOCALAPPDATA");
-
-    std::string where = ".";          // if Windows gives no address, use the current folder
 
     if (base != nullptr) {
         where = base;
         free(base);
     }
+#else
+    const char* base = std::getenv("XDG_DATA_HOME");
+    const char* home = std::getenv("HOME");
+
+    if (base != nullptr && *base != '\0')
+        where = base;
+    else if (home != nullptr && *home != '\0')
+        where = std::string(home) + "/.local/share";
+#endif
 
     return makeFolder(fs::path(where) / "Luvista");
 }
@@ -38,7 +50,43 @@ std::string AppPaths::indexFile()
 }
 
 
+std::string AppPaths::profilesFolder()
+{
+    return makeFolder(fs::path(root()) / "profiles");
+}
+
+
 std::string AppPaths::profileFolder(const std::string& profile)
 {
     return makeFolder(fs::path(root()) / "profiles" / profile);
+}
+
+
+std::string AppPaths::activeProfile()
+{
+    return activeName;
+}
+
+
+void AppPaths::setActiveProfile(const std::string& profile)
+{
+    activeName = profile.empty() ? "guest" : profile;
+}
+
+
+std::string AppPaths::activeFolder()
+{
+    return profileFolder(activeName);
+}
+
+
+std::string AppPaths::recordingsFolder()
+{
+    return makeFolder(fs::path(activeFolder()) / "recordings");
+}
+
+
+std::string AppPaths::coversFolder()
+{
+    return makeFolder(fs::path(root()) / "covers");
 }

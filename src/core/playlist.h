@@ -19,4 +19,8 @@ public:
     bool hasSong(const std::string& name, int id) const;
     int songCount(const std::string& name) const;
     int getSong(const std::string& name, int n) const;   // song id (0 if no line n)
+
+    // A picture the user chose for the playlist, saved as "playlist-<name>.art.png" (or .jpg)
+    std::string art(const std::string& name) const;                            // its path, "" if none
+    bool setArt(const std::string& name, const std::string& imagePath);        // copies a png/jpg in. false if it cannot
 };

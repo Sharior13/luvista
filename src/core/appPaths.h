@@ -6,5 +6,16 @@ class AppPaths {
 public:
     static std::string root();                                    // the main folder
     static std::string indexFile();                               // the list of all songs
-    static std::string profileFolder(const std::string& profile); // favorites, recent, playlists
+    static std::string profilesFolder();                          // holds one folder per profile
+    static std::string profileFolder(const std::string& profile); // favorites, recent, playlists, play counts
+
+    // The profile that is logged in. favorites, recent, playlists and play counts all
+    // read and write inside this profile's folder, so changing it switches every one of them.
+    // Before anyone logs in it is "guest" (a throw-away profile).
+    static std::string activeProfile();
+    static void setActiveProfile(const std::string& profile);
+    static std::string activeFolder();                            // profileFolder(activeProfile())
+
+    static std::string recordingsFolder();                        // microphone recordings of the logged in profile
+    static std::string coversFolder();                            // album pictures cut out of the songs
 };

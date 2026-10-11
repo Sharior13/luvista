@@ -6,7 +6,7 @@
 // Where the favorites notebook lives
 static std::string favoritesFile()
 {
-    return AppPaths::profileFolder("default") + "/favorites.dat";
+    return AppPaths::activeFolder() + "/favorites.dat";
 }
 
 bool Favorite::contains(int id) const {

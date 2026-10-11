@@ -6,7 +6,7 @@
 #include "app.h"
 
 // Folder scanned at startup. "add a new folder" on the All Songs page adds more.
-const std::string MUSIC_FOLDER = "C:/Projects/luvista/src/audio";
+const std::string MUSIC_FOLDER = "C:/Users/lenovo/Music";
 
 int main()
 {

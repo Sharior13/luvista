@@ -34,7 +34,14 @@ static bool isMusic(const fs::path& p)
 // show up as music - even when MUSIC_FOLDER covers that folder.
 static bool isRecordingFile(const fs::path& p)
 {
-    std::string where = p.string();
+    std::string where;
+
+    try {
+        where = p.string();
+    }
+    catch (const std::system_error&) {
+        return false;   // a name plain text cannot hold: scan() skips such a file anyway
+    }
 
     for (char& c : where)
         c = (char)std::tolower((unsigned char)c);
@@ -343,6 +350,7 @@ TrackList::TrackList()
     folder = "";
     nextId = 1;
     songCount = 0;
+    songs.resize(capacity);     // heap storage, so the object itself stays small
     loadFile();
 }
 
@@ -380,7 +388,7 @@ void TrackList::loadFile()
             nextId = s.id + 1;
     }
 
-    sortNewestFirst(songs, songCount);   // "Recently added": newest song on top
+    sortNewestFirst(songs.data(), songCount);   // "Recently added": newest song on top
 }
 
 
@@ -441,13 +449,22 @@ bool TrackList::scan(const std::string& folderPath)
         // recordings belong to the Recordings page, never to the music library
         if (it->is_regular_file(problem) && isMusic(it->path()) &&
             !isRecordingFile(it->path())) {
-            std::string path = it->path().string();
+            std::string path;
+            std::string fileStem;
+
+            try {
+                path = it->path().string();
+                fileStem = it->path().stem().string();
+            }
+            catch (const std::system_error&) {
+                continue;   // a file name plain text cannot hold (emoji, other scripts ...): skip this file
+            }
 
             if (find(path) == 0) {                        // a new song
                 Song s;
                 s.id = nextId;
                 s.path = path;
-                cutName(it->path().stem().string(), s.artist, s.title);   // file name first
+                cutName(fileStem, s.artist, s.title);   // file name first
                 fillFromTags(path, s.title, s.artist, s.album);           // tags in the file win
                 s.added = nowSeconds();
 
@@ -461,7 +478,7 @@ bool TrackList::scan(const std::string& folderPath)
         }
     }
 
-    sortNewestFirst(songs, songCount);   // "Recently added": newest song on top
+    sortNewestFirst(songs.data(), songCount);   // "Recently added": newest song on top
     saveFile();
     return true;
 }
