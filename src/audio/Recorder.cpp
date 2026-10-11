@@ -1,8 +1,15 @@
 #include "Recorder.h"
 
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
+#include <system_error>
+
+#define NOMINMAX
+#include <windows.h>
+#include <shlobj.h> // SHGetKnownFolderPath
 
 extern "C"
 {
@@ -12,6 +19,21 @@ extern "C"
 // recording format
 static const int kSampleRate = 44100;
 static const int kBitrateKbps = 128;
+
+// every recording is saved in the Windows recordings folder:
+// C:\Users\<you>\Documents\Sound Recordings (the one Windows Voice Recorder uses)
+static std::string recordingsFolder()
+{
+    std::string result = "Sound Recordings"; // fallback if Windows can't tell us the Documents folder
+
+    PWSTR documents = nullptr;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents, 0, nullptr, &documents)))
+    {
+        result = (std::filesystem::path(documents) / "Sound Recordings").string();
+    }
+    CoTaskMemFree(documents);
+    return result;
+}
 
 static bool fileExists(const std::string& path)
 {
@@ -221,26 +243,21 @@ bool Recorder::isRecording() const
     return m_recording;
 }
 
-// the file being recorded / saved last
-const std::string& Recorder::currentPath() const
-{
-    return m_path;
-}
-
 // why the last start()/stop() failed ("" = none)
 const std::string& Recorder::lastError() const
 {
     return m_error;
 }
 
-// first free rec_N.mp3 in the folder
-std::string Recorder::nextRecordingPath(const std::string& folder)
+// first free rec_N.mp3 in the Windows Sound Recordings folder (created if missing)
+std::string Recorder::nextRecordingPath()
 {
-    std::string base = folder;
-    if (!base.empty() && base.back() != '/' && base.back() != '\\')
-    {
-        base += '/';
-    }
+    const std::string folder = recordingsFolder();
+
+    std::error_code ec;
+    std::filesystem::create_directories(folder, ec); // does nothing if it already exists
+
+    const std::string base = folder + "/";
 
     for (int n = 1; n < 100000; ++n)
     {
@@ -251,4 +268,36 @@ std::string Recorder::nextRecordingPath(const std::string& folder)
         }
     }
     return base + "rec_new.mp3";
-}
+}
+
+// the folder recordings are saved in (Documents\Sound Recordings)
+std::string Recorder::folder()
+{
+    return recordingsFolder();
+}
+
+// number of finished recordings (rec_*.mp3) in the Sound Recordings folder
+int Recorder::recordingCount()
+{
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const std::string folder = recordingsFolder();
+
+    if (!fs::exists(folder, ec))
+    {
+        return 0;
+    }
+
+    int count = 0;
+    for (fs::directory_iterator it(folder, ec), end; !ec && it != end; it.increment(ec))
+    {
+        std::error_code fileEc;
+        std::string name = it->path().filename().string();
+        if (it->is_regular_file(fileEc) && it->path().extension() == ".mp3" && name.rfind("rec_", 0) == 0)
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+

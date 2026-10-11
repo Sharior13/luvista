@@ -10,20 +10,6 @@ static std::string recentFile()
     return AppPaths::profileFolder("default") + "/recent.dat";
 }
 
-bool RecentList::contains(int id) const
-{
-    std::ifstream File(recentFile());
-    std::string line;
-
-    while (std::getline(File, line))
-    {
-        if (std::atoi(line.c_str()) == id)
-            return true;
-    }
-
-    return false;
-}
-
 // Puts the song at the TOP of the list (newest first).
 // If the song was already there, the old copy is dropped.
 // The list never grows past 10 songs.
