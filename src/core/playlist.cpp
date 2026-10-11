@@ -2,6 +2,7 @@
 #include "appPaths.h"
 #include <fstream>
 #include <string>
+#include <cctype>
 #include <cstdlib>
 #include <filesystem>
 #include <system_error>
@@ -10,12 +11,17 @@ namespace fs = std::filesystem;
 
 // The notebook with all playlist names
 static std::string namesFile() {
-    return AppPaths::profileFolder("default") + "/playlists.dat";
+    return AppPaths::activeFolder() + "/playlists.dat";
 }
 
 // Generate filename
 static std::string fileFor(const std::string& name) {
-    return AppPaths::profileFolder("default") + "/playlist-" + name + ".dat";
+    return AppPaths::activeFolder() + "/playlist-" + name + ".dat";
+}
+
+// The picture file of a playlist
+static fs::path artFor(const std::string& name, const std::string& ending) {
+    return fs::path(AppPaths::activeFolder()) / ("playlist-" + name + ".art" + ending);
 }
 
 // Validate name
@@ -76,6 +82,8 @@ bool Playlists::remove(const std::string& name) {
 
     std::error_code problem;
     fs::remove(fileFor(name), problem);   // erase the song notebook too
+    fs::remove(artFor(name, ".png"), problem);
+    fs::remove(artFor(name, ".jpg"), problem);
 
     return true;
 }
@@ -186,4 +194,43 @@ int Playlists::getSong(const std::string& name, int n) const {
             return std::atoi(line.c_str());
     }
     return 0;
+}
+
+
+// The picture chosen for the playlist
+std::string Playlists::art(const std::string& name) const {
+    std::error_code problem;
+
+    for (const char* ending : { ".png", ".jpg" }) {
+        fs::path p = artFor(name, ending);
+
+        if (fs::is_regular_file(p, problem))
+            return p.string();
+    }
+    return "";
+}
+
+// Copies a picture in. Only png and jpg, because that is what the screen can show.
+bool Playlists::setArt(const std::string& name, const std::string& imagePath) {
+    std::error_code problem;
+
+    if (!exists(name) || !fs::is_regular_file(imagePath, problem))
+        return false;
+
+    std::string ending = fs::path(imagePath).extension().string();
+
+    for (char& c : ending)
+        c = (char)std::tolower((unsigned char)c);
+
+    if (ending == ".jpeg")
+        ending = ".jpg";
+
+    if (ending != ".png" && ending != ".jpg")
+        return false;
+
+    fs::remove(artFor(name, ".png"), problem);       // the old picture of the other kind would win
+    fs::remove(artFor(name, ".jpg"), problem);
+
+    fs::copy_file(imagePath, artFor(name, ending), fs::copy_options::overwrite_existing, problem);
+    return !problem;
 }

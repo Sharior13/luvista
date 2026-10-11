@@ -1,4 +1,4 @@
-#include "recentList.h"
+#include "recentlist.h"
 #include "appPaths.h"
 #include <fstream>
 #include <string>
@@ -7,7 +7,7 @@
 // Where the recent notebook lives
 static std::string recentFile()
 {
-    return AppPaths::profileFolder("default") + "/recent.dat";
+    return AppPaths::activeFolder() + "/recent.dat";
 }
 
 // Puts the song at the TOP of the list (newest first).

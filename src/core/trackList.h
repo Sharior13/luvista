@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 // One song in the library.
 struct Song {
@@ -15,7 +16,8 @@ struct Song {
 class TrackList {
 public:
     // The library never holds more songs than this.
-    // A plain array has a fixed size, so we must pick a number up front.
+    // The songs live in a vector (on the heap): a plain array this big would
+    // not fit on the 1 MB stack when a TrackList is a local variable.
     static constexpr int capacity = 10000;
 
     TrackList();
@@ -39,7 +41,7 @@ private:
     std::string folder;
     int nextId;
     int songCount;          // how many places of the array are filled
-    Song songs[capacity];   // all songs are kept here, in memory
+    std::vector<Song> songs;   // all songs are kept here, in memory (size is always `capacity`)
 
     void loadFile();            // read the notebook file into songs
     void saveFile();            // write songs into the notebook file
