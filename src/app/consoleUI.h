@@ -21,8 +21,10 @@ public:
     std::string addToPlaylistScreen();       // pick a playlist, add the song playing now
     std::string deleteScreen();              // delete a playlist / remove songs / clear favorites
     void showPlaylists();                    // list playlists, open one to see its songs
+    std::string showQueue();                 // the songs waiting to play next
+    std::string showRecordings();            // recordings saved in the Windows recordings folder
     std::string searchSongsScreen();         // search all songs, pick one to play
-    std::string toggleRecording(const std::string& folder);  // record on / off (microphone)
+    std::string toggleRecording();           // record on / off (microphone)
     // scan the folder, then run until X is pressed
     void run(const std::string& folder);
 };

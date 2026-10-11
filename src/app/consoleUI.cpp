@@ -1,9 +1,48 @@
 #include "consoleUI.h"
+#include "../audio/miniaudioBackend.h"
 #include <iostream>
 #include <cstdlib>
 #include <cctype>
+#include <chrono>
+#include <ctime>
+#include <filesystem>
 #include <conio.h>
 #include <windows.h>
+
+namespace fs = std::filesystem;
+
+
+// How the design writes dates: "yesterday", "2 weeks", "4 weeks".
+// added = seconds since 1970 (0 = unknown).
+static std::string agoLabel(long long added)
+{
+    if (added <= 0)
+        return "unknown";
+
+    long long now = (long long)std::time(nullptr);
+    long long secs = now - added;
+
+    if (secs < 0)
+        secs = 0;
+
+    if (secs < 60)       return "just now";
+    if (secs < 3600)     return std::to_string(secs / 60) + " min";
+    if (secs < 86400)    return std::to_string(secs / 3600) + " hours";
+    if (secs < 172800)   return "yesterday";
+    if (secs < 604800)   return std::to_string(secs / 86400) + " days";
+    if (secs < 2592000)  return std::to_string(secs / 604800) + " weeks";
+    if (secs < 31536000) return std::to_string(secs / 2592000) + " months";
+    return std::to_string(secs / 31536000) + " years";
+}
+
+
+// 0 = OFF, 1 = ALL, 2 = ONE (the repeat modes)
+static std::string repeatLabel(int mode)
+{
+    if (mode == 1) return "ALL";
+    if (mode == 2) return "ONE";
+    return "OFF";
+}
 
 
 // the screens get the player to talk to
@@ -22,12 +61,16 @@ std::string ConsoleUI::askSearch()
 }
 
 
-// "Title  |  Artist  |  Album" for one row
+// "Title  |  Artist  |  Album  |  yesterday" for one row (empty if no such song)
 std::string ConsoleUI::describe(int songNumber)
 {
+    if (songNumber <= 0)
+        return "";
+
     return player.songTitle(songNumber) + "  |  " +
         player.songArtist(songNumber) + "  |  " +
-        player.songAlbum(songNumber);
+        player.songAlbum(songNumber) + "  |  " +
+        agoLabel(player.songAdded(songNumber));
 }
 
 
@@ -47,28 +90,50 @@ void ConsoleUI::draw(const std::string& message)
     if (recorder.isRecording())
         std::cout << " [RECORDING]";
 
-    std::cout << "  (" << player.currentIndex()
-        << "/" << player.total() << ")\n";
+    if (player.currentIndex() != 0)
+        std::cout << "  (" << player.currentIndex()
+            << "/" << player.total() << ")\n";
+    else if (player.songName() != "")
+        std::cout << "  (recording)\n";        // playing a file that is not in the library
+    else
+        std::cout << "  (nothing yet)\n";
 
     std::cout << "Time: " << (int)player.position()
         << " / " << (int)player.duration() << " s"
         << "   Volume: " << player.volume() << "%\n";
 
+    std::cout << "Shuffle: " << (player.isShuffleOn() ? "ON" : "OFF")
+        << "   Repeat: " << repeatLabel(player.repeat())
+        << "   In queue: " << player.queueCount() << "\n";
+
+    if (player.currentIndex() != 0) {
+        std::string coming = player.nextSongTitle();
+
+        if (coming != "")
+            std::cout << "Next: " << coming << "\n";
+    }
+
     std::cout << "-----------------------\n"
         << "[N] Next song\n"
         << "[V] Previous song\n"
+        << "[E] Add this song to the queue\n"
+        << "[U] Show the queue\n"
+        << "[H] Shuffle on / off\n"
+        << "[Y] Repeat off / all / one\n"
         << "[P] Pause\n"
         << "[R] Resume / Play\n"
         << "[Space] Pause / Play (one button)\n"
         << "[S] ReStart\n"
         << "[F] Forward 10s\n"
         << "[B] Back 10s\n"
+        << "[J] Jump to a second\n"
         << "[+] Volume Up\n"
         << "[-] Volume Down\n"
         << "[L] Favorite on / off\n"
         << "[G] Search all songs\n"
         << "[A] Show Favorites\n"
         << "[Q] Recently played\n"
+        << "[I] My recordings\n"
         << "[C] Create playlist\n"
         << "[T] Add this song to a playlist\n"
         << "[D] Delete playlist / remove song\n"
@@ -466,8 +531,164 @@ void ConsoleUI::showPlaylists()
     }
 }
 
-// record on / off: saves rec_1.mp3, rec_2.mp3, ... in the folder
-std::string ConsoleUI::toggleRecording(const std::string& folder)
+// the queue screen: the songs waiting to play next
+std::string ConsoleUI::showQueue()
+{
+    int count = player.queueCount();
+
+    if (count == 0)
+        return "The queue is empty";
+
+    system("cls");
+    std::cout << "\n========== QUEUE ==========\n\n";
+
+    for (int n = 1; n <= count; n++) {
+        int song = player.queueSongNumber(n);
+
+        if (song == 0)
+            std::cout << "[" << n << "] (gone from the library)\n";
+        else
+            std::cout << "[" << n << "] " << describe(song) << "\n";
+    }
+
+    std::cout << "\n[C] Clear the queue\nAny other key = back\n";
+
+    int key = _getch();
+
+    if (key == 'c' || key == 'C') {
+        player.clearQueue();
+        return "Queue cleared";
+    }
+
+    return "";
+}
+
+
+// last time a file was written, seconds since 1970 (0 = Windows will not say)
+static long long writtenAt(const fs::path& p)
+{
+    std::error_code problem;
+    auto when = fs::last_write_time(p, problem);
+
+    if (problem)
+        return 0;
+
+    // file clock -> wall clock: both clocks read "now" and we borrow the difference
+    auto offset = when - fs::file_time_type::clock::now();
+    auto sameMoment = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+        std::chrono::system_clock::now() + offset);
+
+    return (long long)std::chrono::system_clock::to_time_t(sameMoment);
+}
+
+
+// 95 seconds -> "1:35"
+static std::string clockTime(double seconds)
+{
+    int s = (int)(seconds + 0.5);
+    std::string out = std::to_string(s / 60) + ":";
+
+    if (s % 60 < 10)
+        out += "0";
+
+    out += std::to_string(s % 60);
+    return out;
+}
+
+
+// the Recordings page: every rec_*.mp3 in the Windows recordings folder.
+// These files are NOT in the library - picking one plays it directly.
+std::string ConsoleUI::showRecordings()
+{
+    const int maxRows = 500;
+
+    int numbers[maxRows];
+    std::string paths[maxRows];
+    int count = 0;
+
+    std::error_code problem;
+    fs::directory_iterator it(Recorder::folder(), problem), end;
+
+    for (; !problem && it != end && count < maxRows; it.increment(problem)) {
+        std::error_code nope;
+
+        if (!it->is_regular_file(nope))
+            continue;
+
+        std::string name = it->path().filename().string();
+
+        if (name.size() < 9 || name.compare(0, 4, "rec_") != 0 ||
+            name.compare(name.size() - 4, 4, ".mp3") != 0)
+            continue;                                  // not one of our recordings
+
+        int n = std::atoi(name.c_str() + 4);
+
+        if (n <= 0)
+            continue;
+
+        numbers[count] = n;
+        paths[count] = it->path().string();
+        count++;
+    }
+
+    // sort by the number in the name: rec_1, rec_2, rec_3, ... (selection sort)
+    for (int i = 0; i < count; i++) {
+        for (int j = i + 1; j < count; j++) {
+            if (numbers[j] < numbers[i]) {
+                int tmpNumber = numbers[i];
+                numbers[i] = numbers[j];
+                numbers[j] = tmpNumber;
+
+                std::string tmpPath = paths[i];
+                paths[i] = paths[j];
+                paths[j] = tmpPath;
+            }
+        }
+    }
+
+    if (count == 0)
+        return "No recordings yet. Press O to record one";
+
+    system("cls");
+    std::cout << "\n========== RECORDINGS ==========\n\n";
+
+    if (recorder.isRecording())
+        std::cout << "[RECORDING] press O on the main screen to stop\n\n";
+
+    std::cout << count << " recordings in\n" << Recorder::folder() << "\n\n";
+
+    // one engine just for measuring lengths - it never touches the song playing now
+    MiniaudioBackend probe;
+
+    for (int i = 0; i < count; i++) {
+        std::cout << "[" << (i + 1) << "] Recording " << numbers[i]
+            << "   " << agoLabel(writtenAt(paths[i])) << "   ";
+
+        if (probe.load(paths[i]))
+            std::cout << clockTime(probe.duration());
+        else
+            std::cout << "?";
+
+        std::cout << "\n";
+    }
+
+    std::cout << "\nPlay a number (0 = back): ";
+    int pick = readNumber();
+
+    if (pick < 1 || pick > count)
+        return "";
+
+    std::string title = "Recording " + std::to_string(numbers[pick - 1]);
+
+    if (player.playFilePath(paths[pick - 1], title))
+        return "Playing " + title;
+
+    return "Could not open it: " + player.lastError();
+}
+
+
+// record on / off: saves rec_1.mp3, rec_2.mp3, ... in the Sound Recordings folder
+std::string ConsoleUI::toggleRecording()
 {
     if (recorder.isRecording()) {
         std::string saved = recorder.stop();
@@ -475,10 +696,10 @@ std::string ConsoleUI::toggleRecording(const std::string& folder)
         if (saved == "")
             return "Could not save the recording: " + recorder.lastError();
 
-        return "Saved: " + saved + "  (restart the app to see it in the library)";
+        return "Saved: " + saved;
     }
 
-    if (recorder.start(Recorder::nextRecordingPath(folder)))
+    if (recorder.start(Recorder::nextRecordingPath()))
         return "Recording... press O again to stop";
 
     return "Could not start recording: " + recorder.lastError();
@@ -518,6 +739,29 @@ void ConsoleUI::run(const std::string& folder)
                 message = "Previous song";
                 break;
 
+            case 'E':
+                if (player.currentIndex() == 0)
+                    message = "No song is playing";
+                else if (player.addToQueue(player.currentIndex()))
+                    message = "Added to the queue";
+                else
+                    message = "Could not add to the queue";
+                break;
+
+            case 'U':
+                message = showQueue();
+                break;
+
+            case 'H':
+                player.toggleShuffle();
+                message = player.isShuffleOn() ? "Shuffle ON" : "Shuffle OFF";
+                break;
+
+            case 'Y':
+                player.toggleRepeat();
+                message = "Repeat: " + repeatLabel(player.repeat());
+                break;
+
             case 'P':
                 player.pause();
                 message = "Paused";
@@ -547,6 +791,19 @@ void ConsoleUI::run(const std::string& folder)
                 player.back();
                 message = "Back 10s";
                 break;
+
+            case 'J': {
+                std::cout << "\nJump to which second (0 = cancel): ";
+                int sec = readNumber();
+
+                if (sec > 0) {
+                    player.seekTo(sec);
+                    message = "Jumped to second " + std::to_string(sec);
+                }
+                else
+                    message = "Cancelled";
+                break;
+            }
 
             case '+':
             case '=':
@@ -578,6 +835,10 @@ void ConsoleUI::run(const std::string& folder)
                 message = "";
                 break;
 
+            case 'I':
+                message = showRecordings();
+                break;
+
             case 'C':
                 message = createPlaylistScreen();
                 break;
@@ -596,7 +857,7 @@ void ConsoleUI::run(const std::string& folder)
                 break;
 
             case 'O':
-                message = toggleRecording(folder);
+                message = toggleRecording();
                 break;
 
             case 'X':

@@ -10,18 +10,30 @@
 namespace fs = std::filesystem;
 
 
-// Says yes if a file is a music file.
-// It only looks at the ending of the name, like ".mp3".
+// Says yes if a file is a music file (looks only at the ending, like ".mp3").
 static bool isMusic(const fs::path& p)
 {
     std::string ending = p.extension().string();
 
-    // make all letters small, so ".MP3" and ".mp3" are the same
     for (char& c : ending)
         c = (char)std::tolower((unsigned char)c);
 
-    return ending == ".mp3" || ending == ".wav" || ending == ".m4a" ||
-        ending == ".aac" || ending == ".aif" || ending == ".aiff";
+    return ending == ".mp3" || ending == ".wav" || ending == ".flac" ||
+        ending == ".m4a" || ending == ".aac" || ending == ".aif" || ending == ".aiff";
+}
+
+
+// Says yes when the file lives in the Windows recordings folder
+// (Documents\Sound Recordings). Recordings have their own screen and must NEVER
+// show up as music - even when MUSIC_FOLDER covers that folder.
+static bool isRecordingFile(const fs::path& p)
+{
+    std::string where = p.string();
+
+    for (char& c : where)
+        c = (char)std::tolower((unsigned char)c);
+
+    return where.find("sound recordings") != std::string::npos;
 }
 
 
@@ -33,38 +45,18 @@ static std::string piece(const std::string& line, int number)
     std::string result = "";
 
     for (char c : line) {
-        if (c == '\t') {
+        if (c == '\t')
             tabsSeen++;
-        }
-        else if (tabsSeen == number) {
+        else if (tabsSeen == number)
             result += c;
-        }
     }
 
     return result;
 }
 
 
-// Opens the notebook and gives back line number n. "" if there is no such line.
-static std::string lineNumber(int n)
-{
-    std::ifstream notebook(AppPaths::indexFile());
-    std::string line;
-    int number = 0;
-
-    while (std::getline(notebook, line)) {
-        number++;
-
-        if (number == n)
-            return line;
-    }
-
-    return "";
-}
-
-
-// A file named "Adele - Hello" is cut at " - ": artist = "Adele", title = "Hello".
-// If there is no " - " in the name, the artist is "Unknown artist" and the title is the whole name.
+// "Adele - Hello" is cut at " - ": artist = "Adele", title = "Hello".
+// If there is no " - " in the name, artist is "Unknown artist" and title is the whole name.
 static void cutName(const std::string& fileName, std::string& artist, std::string& title)
 {
     size_t place = fileName.find(" - ");
@@ -80,17 +72,42 @@ static void cutName(const std::string& fileName, std::string& artist, std::strin
 }
 
 
-// What we can read from the tags inside a music file.
+// The time right now, in seconds since 1970.
+static long long nowSeconds()
+{
+    return (long long)std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
+
+// Newest first: the song with the newest "added" date moves to place 1.
+static void sortNewestFirst(Song* list, int count)
+{
+    for (int i = 0; i < count; i++) {
+        int best = i;
+
+        for (int j = i + 1; j < count; j++)
+            if (list[j].added > list[best].added)
+                best = j;
+
+        if (best != i) {
+            Song temp = list[i];
+            list[i] = list[best];
+            list[best] = temp;
+        }
+    }
+}
+
+
+// ===========================================================================
+// ID3 TAG READING  (reads the real title / artist / album inside an mp3 file)
+// You do NOT need to understand this part. It works, so just leave it alone.
+// ===========================================================================
 struct Tags {
     std::string title;
     std::string artist;
     std::string album;
 };
-
-// ID3v2 layout (what mp3 files use):
-//   10 byte header:  "ID3", version, revision, flags, size (4 bytes, 7 bits each)
-//   then frames:     id, size, flags, data.   Title = TIT2, Artist = TPE1, Album = TALB.
-// Version 2.2 uses 3-letter ids (TT2, TP1, TAL) and a 3 byte size.
 
 
 // Size stored with only 7 bits in each byte ("synchsafe").
@@ -115,7 +132,12 @@ static unsigned int bigEndian(const unsigned char* b, int bytes)
 }
 
 
-// Adds one character (a Unicode number) to a UTF-8 string.
+// Adds one Unicode character (a "code point") to a UTF-8 string.
+// UTF-8 writes small numbers with 1 byte and bigger numbers with 2, 3 or 4 bytes:
+//   up to 0x7F     -> 1 byte   (plain English letters)
+//   up to 0x7FF    -> 2 bytes  (e.g. e with accent)
+//   up to 0xFFFF   -> 3 bytes  (e.g. Nepali, Chinese, euro sign)
+//   above that     -> 4 bytes  (e.g. emoji)
 static void addChar(std::string& out, unsigned int c)
 {
     if (c < 0x80) {
@@ -147,7 +169,7 @@ static std::string decodeText(const unsigned char* data, unsigned int size)
     if (size < 2)
         return "";
 
-    int encoding = data[0];
+    const int encoding = data[0];
     data++;
     size--;
 
@@ -195,7 +217,7 @@ static std::string decodeText(const unsigned char* data, unsigned int size)
         }
     }
 
-    // the song list uses tabs and new lines to split things, so none may stay inside the text
+    // the index file uses tabs and new lines to split things, so none may stay inside the text
     for (char& c : out) {
         if (c == '\t' || c == '\n' || c == '\r')
             c = ' ';
@@ -218,12 +240,12 @@ static bool readTags(const std::string& path, Tags& out)
     if (file.gcount() != 10 || header[0] != 'I' || header[1] != 'D' || header[2] != '3')
         return false;                       // no ID3v2 tag at the start
 
-    int version = header[3];                // 2, 3 or 4
+    const int version = header[3];          // 2, 3 or 4
 
     if (version < 2 || version > 4)
         return false;
 
-    unsigned int tagSize = syncsafe(header + 6);
+    const unsigned int tagSize = syncsafe(header + 6);
 
     if (tagSize == 0 || tagSize > 16 * 1024 * 1024)
         return false;                       // empty, or too big to be sane
@@ -233,7 +255,7 @@ static bool readTags(const std::string& path, Tags& out)
     tag.resize((size_t)file.gcount());
 
     const unsigned char* t = (const unsigned char*)tag.data();
-    unsigned int end = (unsigned int)tag.size();
+    const unsigned int end = (unsigned int)tag.size();
     unsigned int pos = 0;
 
     // skip the extended header if there is one
@@ -244,14 +266,14 @@ static bool readTags(const std::string& path, Tags& out)
             pos = bigEndian(t, 4) + 4;
     }
 
-    int idLength = (version == 2) ? 3 : 4;
-    int headLength = (version == 2) ? 6 : 10;
+    const int idLength = (version == 2) ? 3 : 4;
+    const unsigned int headLength = (version == 2) ? 6 : 10;
 
     while (pos + headLength <= end) {
         if (t[pos] == 0)
             break;                          // padding: no more frames
 
-        std::string id((const char*)t + pos, idLength);
+        const std::string id((const char*)t + pos, idLength);
 
         unsigned int size;
 
@@ -262,7 +284,7 @@ static bool readTags(const std::string& path, Tags& out)
         else
             size = syncsafe(t + pos + 4);
 
-        unsigned int dataStart = pos + headLength;
+        const unsigned int dataStart = pos + headLength;
 
         if (size > end - dataStart)
             break;                          // frame says it is bigger than the tag: stop
@@ -281,14 +303,6 @@ static bool readTags(const std::string& path, Tags& out)
 }
 
 
-// The time right now, in seconds since 1970.
-static long long nowSeconds()
-{
-    return (long long)std::chrono::duration_cast<std::chrono::seconds>(
-        std::chrono::system_clock::now().time_since_epoch()).count();
-}
-
-
 // Looks inside the file for its real title, artist and album.
 // Whatever the file does not have stays as it was. A missing album becomes "Unknown album".
 static void fillFromTags(const std::string& path,
@@ -297,70 +311,84 @@ static void fillFromTags(const std::string& path,
     Tags tags;
 
     if (readTags(path, tags)) {
-        if (tags.title != "")
+        if (!tags.title.empty())
             title = tags.title;
 
-        if (tags.artist != "")
+        if (!tags.artist.empty())
             artist = tags.artist;
 
         album = tags.album;
     }
     else {
-        album = "";
+        album.clear();
     }
 
-    if (album == "")
+    if (album.empty())
         album = "Unknown album";
 }
 
 
-// Starts with zero songs, then counts what is already in the notebook from last time.
+// ===========================================================================
+// TrackList
+// ===========================================================================
+
 TrackList::TrackList()
 {
     folder = "";
-    count = 0;
     nextId = 1;
-    countSongs();
+    songCount = 0;
+    loadFile();
 }
 
 
-// Counts the songs in the notebook. Also remembers the biggest id, so a new id is never reused.
-void TrackList::countSongs()
+// Reads the notebook file one time and puts every song into the list.
+void TrackList::loadFile()
 {
+    songCount = 0;
+
     std::ifstream notebook(AppPaths::indexFile());
     std::string line;
-
-    count = 0;
 
     while (std::getline(notebook, line)) {
         if (line == "")
             continue;
 
-        count++;
+        Song s;
+        s.id = std::atoi(piece(line, 0).c_str());
+        s.path = piece(line, 1);
+        s.title = piece(line, 2);
+        s.artist = piece(line, 3);
+        s.album = piece(line, 4);
+        s.added = std::atoll(piece(line, 5).c_str());
 
-        int id = std::atoi(piece(line, 0).c_str());
+        if (isRecordingFile(s.path))
+            continue;               // an old recording in the index: drop it, music library only
 
-        if (id >= nextId)
-            nextId = id + 1;
+        if (songCount >= capacity)   // the array is full: stop reading
+            break;
+
+        songs[songCount] = s;
+        songCount++;
+
+        if (s.id >= nextId)          // so a new id is never the same as an old one
+            nextId = s.id + 1;
     }
+
+    sortNewestFirst(songs, songCount);   // "Recently added": newest song on top
 }
 
 
-// Looks for a path in the notebook. Gives the line number, or 0 if it is not there.
-int TrackList::find(const std::string& path) const
+// Writes the whole list into the notebook file.
+void TrackList::saveFile()
 {
-    std::ifstream notebook(AppPaths::indexFile());
-    std::string line;
-    int number = 0;
+    std::ofstream notebook(AppPaths::indexFile());   // this erases the old notebook
 
-    while (std::getline(notebook, line)) {
-        number++;
+    for (int i = 0; i < songCount; i++) {
+        const Song& s = songs[i];
 
-        if (piece(line, 1) == path)
-            return number;
+        notebook << s.id << '\t' << s.path << '\t' << s.title << '\t'
+            << s.artist << '\t' << s.album << '\t' << s.added << '\n';
     }
-
-    return 0;
 }
 
 
@@ -374,153 +402,161 @@ bool TrackList::scan(const std::string& folderPath)
     if (!fs::is_directory(folder, problem))
         return false;          // the folder is not there
 
-    // Step 1: keep only the songs whose file is still there
-    std::string kept = "";
+    // Step 1: forget songs whose file is not there any more
+    for (int i = songCount - 1; i >= 0; i--) {
+        std::error_code e;
 
-    {
-        std::ifstream notebook(AppPaths::indexFile());
-        std::string line;
+        if (!fs::exists(songs[i].path, e)) {
+            // take songs[i] out: every song behind it moves one place up
+            for (int j = i + 1; j < songCount; j++)
+                songs[j - 1] = songs[j];
 
-        while (std::getline(notebook, line)) {
-            std::error_code e;
-            std::string path = piece(line, 1);
-
-            if (line == "" || !fs::exists(path, e))
-                continue;
-
-            std::string title = piece(line, 2);
-            std::string artist = piece(line, 3);
-            std::string album = piece(line, 4);
-            std::string added = piece(line, 5);
-
-            // an old line ("-" album) has not been read yet: fill it now, the id stays the same
-            if (album == "-" || album == "")
-                fillFromTags(path, title, artist, album);
-
-            if (added == "")
-                added = std::to_string(nowSeconds());
-
-            kept += piece(line, 0) + "\t" + path + "\t" + title + "\t" +
-                artist + "\t" + album + "\t" + added + "\n";
+            songCount--;
         }
-    }   // the notebook is closed here, so we can write to it now
-
-    {
-        std::ofstream notebook(AppPaths::indexFile());   // this erases the old notebook
-        notebook << kept;
     }
 
-    // Step 2: walk through the folder (and the folders inside it)
+    // Step 2: old songs that have no album yet get their tags read now
+    for (int i = 0; i < songCount; i++) {
+        Song& s = songs[i];
+
+        if (s.album == "-" || s.album == "")
+            fillFromTags(s.path, s.title, s.artist, s.album);
+
+        if (s.added == 0)
+            s.added = nowSeconds();
+    }
+
+    // Step 3: walk through the folder (and the folders inside it)
     fs::recursive_directory_iterator it(
         folder, fs::directory_options::skip_permission_denied, problem);
 
     for (; !problem && it != fs::recursive_directory_iterator(); it.increment(problem)) {
 
-        if (it->is_regular_file(problem) && isMusic(it->path())) {
+        // recordings belong to the Recordings page, never to the music library
+        if (it->is_regular_file(problem) && isMusic(it->path()) &&
+            !isRecordingFile(it->path())) {
             std::string path = it->path().string();
 
             if (find(path) == 0) {                        // a new song
-                std::string artist, title, album;
-                cutName(it->path().stem().string(), artist, title);   // the file name is the fallback
-                fillFromTags(path, title, artist, album);             // the tags in the file win
+                Song s;
+                s.id = nextId;
+                s.path = path;
+                cutName(it->path().stem().string(), s.artist, s.title);   // file name first
+                fillFromTags(path, s.title, s.artist, s.album);           // tags in the file win
+                s.added = nowSeconds();
 
-                std::ofstream notebook(AppPaths::indexFile(), std::ios::app);   // add at the end
-                notebook << nextId << '\t' << path << '\t' << title << '\t'
-                    << artist << '\t' << album << '\t' << nowSeconds() << '\n';
+                if (songCount >= capacity)   // the array is full: stop adding
+                    break;
 
+                songs[songCount] = s;
+                songCount++;
                 nextId++;
             }
         }
     }
 
-    countSongs();
+    sortNewestFirst(songs, songCount);   // "Recently added": newest song on top
+    saveFile();
     return true;
 }
 
 
-// Takes song number n out of the notebook. The music file itself stays on disk.
+// Takes song number n out of the list. The music file itself stays on disk.
 bool TrackList::removeSong(int n)
 {
-    if (n < 1 || n > count)
+    if (n < 1 || n > songCount)
         return false;
 
-    std::ifstream in(AppPaths::indexFile());
-    std::string kept = "";
-    std::string line;
-    int number = 0;
+    // take songs[n-1] out: every song behind it moves one place up
+    for (int i = n; i < songCount; i++)
+        songs[i - 1] = songs[i];
 
-    while (std::getline(in, line)) {
-        number++;
-
-        if (number != n && line != "")
-            kept += line + "\n";   // keep every line except song n
-    }
-    in.close();
-
-    std::ofstream out(AppPaths::indexFile());   // this erases the old notebook
-    out << kept;
-    out.close();   // finish writing BEFORE counting, so countSongs sees the new file
-
-    countSongs();
+    songCount--;
+    saveFile();
     return true;
 }
 
 
 int TrackList::getCount() const
 {
-    return count;
+    return songCount;
 }
 
 
 std::string TrackList::getTrack(int n) const
 {
-    return piece(lineNumber(n), 1);
+    if (n < 1 || n > songCount)
+        return "";
+
+    return songs[n - 1].path;
 }
 
 
 std::string TrackList::getTitle(int n) const
 {
-    return piece(lineNumber(n), 2);
+    if (n < 1 || n > songCount)
+        return "";
+
+    return songs[n - 1].title;
 }
 
 
 std::string TrackList::getArtist(int n) const
 {
-    return piece(lineNumber(n), 3);
+    if (n < 1 || n > songCount)
+        return "";
+
+    return songs[n - 1].artist;
 }
 
 
 std::string TrackList::getAlbum(int n) const
 {
-    return piece(lineNumber(n), 4);
+    if (n < 1 || n > songCount)
+        return "";
+
+    return songs[n - 1].album;
 }
 
 
-// When the song was added to the library (seconds since 1970). 0 if there is no such song.
+// When song number n was added (seconds since 1970). 0 if there is no such song.
+// The Recordings / library tables show this as the "Date added" column.
 long long TrackList::getAdded(int n) const
 {
-    return std::atoll(piece(lineNumber(n), 5).c_str());
+    if (n < 1 || n > songCount)
+        return 0;
+
+    return songs[n - 1].added;
 }
 
 
 int TrackList::getId(int n) const
 {
-    return std::atoi(piece(lineNumber(n), 0).c_str());
+    if (n < 1 || n > songCount)
+        return 0;
+
+    return songs[n - 1].id;
 }
 
 
-// Reads down the notebook until it finds the id. Gives the line number, or 0.
+// Looks for a path in the list. Gives the song number, or 0 if it is not there.
+int TrackList::find(const std::string& path) const
+{
+    for (int i = 0; i < songCount; i++) {
+        if (songs[i].path == path)
+            return i + 1;
+    }
+
+    return 0;
+}
+
+
+// Looks for an id in the list. Gives the song number, or 0.
 int TrackList::positionOfId(int id) const
 {
-    std::ifstream notebook(AppPaths::indexFile());
-    std::string line;
-    int number = 0;
-
-    while (std::getline(notebook, line)) {
-        number++;
-
-        if (std::atoi(piece(line, 0).c_str()) == id)
-            return number;
+    for (int i = 0; i < songCount; i++) {
+        if (songs[i].id == id)
+            return i + 1;
     }
 
     return 0;
@@ -539,7 +575,7 @@ static std::string lowerCase(std::string text)
 
 bool TrackList::matches(int n, const std::string& query) const
 {
-    if (n < 1 || n > count)
+    if (n < 1 || n > songCount)
         return false;
 
     if (query == "")
@@ -547,13 +583,7 @@ bool TrackList::matches(int n, const std::string& query) const
 
     std::string wanted = lowerCase(query);
 
-    return lowerCase(getTitle(n)).find(wanted) != std::string::npos ||
-        lowerCase(getArtist(n)).find(wanted) != std::string::npos ||
-        lowerCase(getAlbum(n)).find(wanted) != std::string::npos;
-}
-
-
-std::string TrackList::getFolder() const
-{
-    return folder;
+    return lowerCase(songs[n - 1].title).find(wanted) != std::string::npos ||
+        lowerCase(songs[n - 1].artist).find(wanted) != std::string::npos ||
+        lowerCase(songs[n - 1].album).find(wanted) != std::string::npos;
 }

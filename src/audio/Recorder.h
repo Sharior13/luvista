@@ -20,7 +20,7 @@ public:
     Recorder(const Recorder&) = delete;
     Recorder& operator=(const Recorder&) = delete;
 
-    // start: begin recording to outPath (e.g. "music/rec_1.mp3"). false = failure (see lastError()).
+    // start: begin recording to outPath (use nextRecordingPath()). false = failure (see lastError()).
     bool start(const std::string& outPath);
 
     // stop: encode the temp file into the final MP3 and delete it. Returns the saved path,
@@ -29,14 +29,18 @@ public:
 
     bool isRecording() const;
 
-    // the file being recorded / the file saved last
-    const std::string& currentPath() const;
-
     // why the last start()/stop() failed ("" = no problem)
     const std::string& lastError() const;
 
-    // first free name: folder/rec_1.mp3, folder/rec_2.mp3, ...
-    static std::string nextRecordingPath(const std::string& folder);
+    // first free name in the Windows Sound Recordings folder
+    // (Documents\Sound Recordings\rec_1.mp3, rec_2.mp3, ...). Creates the folder if missing.
+    static std::string nextRecordingPath();
+
+    // the folder recordings are saved in (Documents\Sound Recordings)
+    static std::string folder();
+
+    // how many rec_N.mp3 files are saved in the Sound Recordings folder
+    static int recordingCount();
 
     // raw 16-bit mono file -> MP3. Used by stop(); public so it can be tested alone.
     static bool encodeRawToMp3(const std::string& rawPath, const std::string& mp3Path,

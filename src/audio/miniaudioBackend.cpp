@@ -215,4 +215,4 @@ bool MiniaudioBackend::is_playing()
 std::string MiniaudioBackend::last_error()
 {
     return errorText;
-}
+}

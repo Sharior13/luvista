@@ -1,41 +1,46 @@
 #pragma once
+
 #include <string>
 
+// One song in the library.
+struct Song {
+    int id = 0;
+    std::string path;
+    std::string title;
+    std::string artist;
+    std::string album;
+    long long added = 0;     // seconds since 1970
+};
+
 class TrackList {
-private:
-    std::string folder;     // the folder we scanned last
-    int count;              // how many songs are in the notebook
-    int nextId;             // the id the next new song gets
-
-    void countSongs();                          // counts the lines in the notebook
-    int find(const std::string& path) const;    // line number of a path, 0 if not there
-
 public:
+    // The library never holds more songs than this.
+    // A plain array has a fixed size, so we must pick a number up front.
+    static constexpr int capacity = 10000;
+
     TrackList();
 
-    // Adds the new songs in this folder. Forgets songs whose file is gone.
-    // False if the folder does not exist.
     bool scan(const std::string& folderPath);
-
-    // Takes song number n out of the notebook (the file on disk stays).
     bool removeSong(int n);
 
-    int getCount() const;
+    int         getCount() const;
+    std::string getTrack(int n) const;
+    std::string getTitle(int n) const;
+    std::string getArtist(int n) const;
+    std::string getAlbum(int n) const;
+    long long   getAdded(int n) const;
+    int         getId(int n) const;
 
-    // Song number n (the first song is number 1)
-    std::string getTrack(int n) const;      // the file address
-    std::string getTitle(int n) const;      // the name
-    std::string getArtist(int n) const;     // the artist
-    std::string getAlbum(int n) const;      // the album
-    int getId(int n) const;                 // the id (0 if no such song)
-    long long getAdded(int n) const;        // when it was found
-
-    // From an id to a song number: 1, 2, 3 ... or 0 if there is no such song
-    int positionOfId(int id) const;
-
-    // Does song number n match the search words? Looks at the title, artist and album,
-    // ignores big/small letters. An empty search matches every song.
+    int  find(const std::string& path) const;
+    int  positionOfId(int id) const;
     bool matches(int n, const std::string& query) const;
 
-    std::string getFolder() const;
+private:
+    std::string folder;
+    int nextId;
+    int songCount;          // how many places of the array are filled
+    Song songs[capacity];   // all songs are kept here, in memory
+
+    void loadFile();            // read the notebook file into songs
+    void saveFile();            // write songs into the notebook file
 };

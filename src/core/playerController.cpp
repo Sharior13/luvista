@@ -1,4 +1,6 @@
 #include "playerController.h"
+#include <cstdlib>      // srand / rand: the shuffle needs random numbers
+#include <ctime>        // time(): so every run of the program shuffles differently
 #include <filesystem>
 
 namespace fs = std::filesystem;
@@ -13,6 +15,13 @@ PlayerController::PlayerController(AudioBackend& a, TrackList& t)
     volumePercent = 50;
     trackName = "";
     errorText = "";
+
+    shuffle = false;
+    repeatMode = 0;
+    orderSize = 0;
+    orderAt = -1;
+
+    std::srand((unsigned int)std::time(nullptr));   // seed the random numbers (runs once)
 }
 
 
@@ -39,12 +48,17 @@ void PlayerController::playTrack(int n, int step)
             audio.set_volume(volumePercent / 100.0f);
             audio.play();
             recent.add(tracks.getId(n));     // recent remembers the id, not the path
+            orderAt = placeInOrder(n);       // the shuffle finger follows the song playing
             return;
         }
 
         errorText = audio.last_error();
         n = (n - 1 + step + songs) % songs + 1;
     }
+
+    // every try failed: nothing is playing after all
+    current = 0;
+    trackName = "";
 }
 
 
@@ -57,6 +71,26 @@ void PlayerController::playSong(int n)
 }
 
 
+// Plays a file that is NOT in the library (a recording from the recordings folder).
+// current stays 0 so the player knows it is not a library song: no auto-next,
+// no favorite, no queue - but pause / resume / seek / volume still work.
+bool PlayerController::playFilePath(const std::string& path, const std::string& name)
+{
+    if (audio.load(path)) {
+        errorText = "";
+        audio.set_volume(volumePercent / 100.0f);
+        audio.play();
+        current = 0;
+        paused = false;
+        trackName = name;
+        return true;
+    }
+
+    errorText = audio.last_error();
+    return false;
+}
+
+
 void PlayerController::next()
 {
     int songs = tracks.getCount();
@@ -64,6 +98,35 @@ void PlayerController::next()
     if (songs == 0)
         return;
 
+    // 1) the queue wins: play the first waiting song
+    int id = queue.take();
+
+    while (id != 0) {
+        int n = tracks.positionOfId(id);
+
+        if (n != 0) {
+            playTrack(n, 1);
+            return;
+        }
+
+        id = queue.take();     // this song was removed from the library: skip it
+    }
+
+    // 2) shuffle: the next place in the shuffled order
+    if (shuffle) {
+        if (orderSize != songs)
+            buildShuffleOrder();            // the library changed size since last time
+
+        orderAt++;
+
+        if (orderAt >= orderSize)
+            orderAt = 0;                  // heard them all: the same order starts again
+
+        playTrack(order[orderAt], 1);
+        return;
+    }
+
+    // 3) normal: the song after this one
     playTrack(current % songs + 1, 1);
 }
 
@@ -78,6 +141,20 @@ void PlayerController::previous()
 
     if (current != 0 && audio.position() > 3.0) {
         restart();
+        return;
+    }
+
+    // shuffle: one step back in the shuffled order (wraps to the end)
+    if (shuffle) {
+        if (orderSize != songs)
+            buildShuffleOrder();            // the library changed size since last time
+
+        orderAt--;
+
+        if (orderAt < 0)
+            orderAt = orderSize - 1;
+
+        playTrack(order[orderAt], -1);
         return;
     }
 
@@ -105,9 +182,10 @@ void PlayerController::resume()
 
 
 // One play/pause button: pauses if playing, plays if paused.
+// Works for library songs AND for recordings (something must be loaded).
 void PlayerController::togglePlay()
 {
-    if (current == 0)
+    if (trackName == "")
         return;
 
     if (paused)
@@ -163,7 +241,7 @@ void PlayerController::seekTo(double seconds)
 }
 
 
-// Checks "is the song finished?". If yes, plays the next one.
+// Checks "is the song finished?". If yes, carries on according to the repeat mode.
 void PlayerController::update()
 {
     if (current == 0 || paused)
@@ -173,8 +251,28 @@ void PlayerController::update()
     bool finished = audio.duration() > 0 &&
         audio.position() >= audio.duration() - 0.1;
 
-    if (finished)
+    if (!finished)
+        return;
+
+    // the queue always wins, whatever the repeat mode says
+    if (queue.count() > 0) {
         next();
+        return;
+    }
+
+    if (repeatMode == 2) {       // repeat ONE: the same song again
+        restart();
+        return;
+    }
+
+    if (repeatMode == 0 && atEndOfLibrary()) {   // repeat OFF: the library ends here
+        audio.pause();
+        audio.seek(0);           // so pressing Resume plays it from the top
+        paused = true;
+        return;
+    }
+
+    next();                      // repeat ALL (or still songs to go): carry on
 }
 
 
@@ -236,31 +334,9 @@ int PlayerController::favoriteCount() const
     return favorites.count();
 }
 
-// The file address of favorite number n (the list holds ids, we turn it into a path).
-std::string PlayerController::favorite(int n) const
-{
-    return tracks.getTrack(tracks.positionOfId(favorites.get(n)));
-}
-
-std::string PlayerController::favoriteTitle(int n) const
-{
-    return tracks.getTitle(tracks.positionOfId(favorites.get(n)));
-}
-
-
 int PlayerController::recentCount() const
 {
     return recent.count();
-}
-
-std::string PlayerController::recentSong(int n) const
-{
-    return tracks.getTrack(tracks.positionOfId(recent.get(n)));
-}
-
-std::string PlayerController::recentTitle(int n) const
-{
-    return tracks.getTitle(tracks.positionOfId(recent.get(n)));
 }
 
 
@@ -301,7 +377,8 @@ int PlayerController::playlistSongNumber(const std::string& name, int row) const
 }
 
 
-// The name of the song that comes after the one playing now.
+// The song that plays after this one: the queue first, then the shuffled
+// order, then the plain "next song in the list" answer.
 std::string PlayerController::nextSongTitle() const
 {
     int songs = tracks.getCount();
@@ -309,14 +386,152 @@ std::string PlayerController::nextSongTitle() const
     if (songs == 0)
         return "";
 
+    for (int row = 1; row <= queue.count(); row++) {
+        int n = tracks.positionOfId(queue.get(row));
+
+        if (n != 0)                       // the first queued song that still exists
+            return tracks.getTitle(n);
+    }
+
+    if (shuffle && orderSize > 0) {
+        int after = orderAt + 1;
+
+        if (after >= orderSize)
+            after = 0;                    // the round starts again
+
+        return tracks.getTitle(order[after]);
+    }
+
     return tracks.getTitle(current % songs + 1);
 }
 
 
-// When song number n was found (seconds since 1970).
+// When song number n was added (seconds since 1970). For the "Date added" column.
 long long PlayerController::songAdded(int n) const
 {
     return tracks.getAdded(n);
+}
+
+
+// Builds a new random way through the library: order[] holds 1..N, shuffled once.
+// The trick (Fisher-Yates): walk backwards and swap each place with a random
+// place that is still to come. Every song lands exactly once somewhere.
+void PlayerController::buildShuffleOrder()
+{
+    int songs = tracks.getCount();
+
+    if (songs > TrackList::capacity)
+        songs = TrackList::capacity;     // never fill more than the array holds
+
+    orderSize = songs;
+
+    for (int i = 0; i < songs; i++)
+        order[i] = i + 1;                // start in normal order: 1, 2, 3, ...
+
+    for (int i = songs - 1; i > 0; i--) {
+        int j = std::rand() % (i + 1);   // a random place from 0 to i
+
+        int temp = order[i];
+        order[i] = order[j];
+        order[j] = temp;
+    }
+}
+
+
+// Where song number n sits in the shuffled order. -1 = it is not in there.
+int PlayerController::placeInOrder(int n) const
+{
+    for (int i = 0; i < orderSize; i++) {
+        if (order[i] == n)
+            return i;
+    }
+
+    return -1;
+}
+
+
+// Puts a song at the end of the queue: it plays after the ones already waiting.
+bool PlayerController::addToQueue(int songNumber)
+{
+    if (songNumber < 1 || songNumber > tracks.getCount())
+        return false;
+
+    int before = queue.count();
+    queue.add(tracks.getId(songNumber));
+    return queue.count() > before;       // false when the queue is full
+}
+
+
+// The queue becomes empty.
+void PlayerController::clearQueue()
+{
+    queue.clear();
+}
+
+
+int PlayerController::queueCount() const
+{
+    return queue.count();
+}
+
+
+// Queue row -> song number in the library (0 when the song was removed).
+int PlayerController::queueSongNumber(int row) const
+{
+    return tracks.positionOfId(queue.get(row));
+}
+
+
+std::string PlayerController::queueTitle(int row) const
+{
+    return tracks.getTitle(tracks.positionOfId(queue.get(row)));
+}
+
+
+// Turns shuffle on / off.
+void PlayerController::toggleShuffle()
+{
+    shuffle = !shuffle;
+
+    if (shuffle) {
+        buildShuffleOrder();
+        orderAt = placeInOrder(current);   // start the shuffle after the song playing now
+    }
+}
+
+
+bool PlayerController::isShuffleOn() const
+{
+    return shuffle;
+}
+
+
+// Turns repeat to the next mode: OFF -> ALL -> ONE -> OFF.
+void PlayerController::toggleRepeat()
+{
+    repeatMode = (repeatMode + 1) % 3;
+}
+
+
+int PlayerController::repeat() const
+{
+    return repeatMode;
+}
+
+
+// Says yes when the next next() would wrap around: in shuffle mode that is the
+// last place of the round, otherwise the last song of the library.
+bool PlayerController::atEndOfLibrary() const
+{
+    int songs = tracks.getCount();
+
+    if (songs == 0)
+        return true;
+
+    if (shuffle && orderSize > 0)
+        return orderAt == orderSize - 1;
+
+    return current == songs;
 }
 
 
