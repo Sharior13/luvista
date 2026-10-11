@@ -1,0 +1,148 @@
+import { Theme } from "../theme.slint";
+import { CoverArt } from "cover-art.slint";
+
+//one song in a list. The backend formats date-added and length as text.
+export struct SongInfo {
+    title: string,
+    artist: string,
+    album: string,         //empty shows "-"
+    date-added: string,    //"yesterday", "2 weeks"
+    length: string,        //"3:22"
+    art: image,            //empty = gradient placeholder
+}
+
+//one row of a song list: number, art + title/artist, album, date added and length.
+export component SongRow inherits Rectangle {
+    in property <int> index;               //0 based, shown as index + 1
+    in property <SongInfo> song;
+    in property <image> icon;              //drawn on top of the gradient when show-icon is true (recordings)
+    in property <bool> show-icon: false;
+    in property <bool> show-album: true;
+    in property <bool> show-date: true;
+    callback clicked();
+
+    height: Theme.row-height;
+    border-radius: 8px;
+    background: touch.has-hover ? Theme.nav-hover : transparent;
+    animate background { duration: Theme.anim-fast; }
+
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+
+        //number, becomes a play icon while the row is hovered
+        Rectangle {
+            width: Theme.col-index;
+
+            Text {
+                visible: !touch.has-hover;
+                text: "\{root.index + 1}";
+                color: Theme.text-primary;
+                font-size: 15px;
+                font-weight: 700;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            Image {
+                visible: touch.has-hover;
+                source: @image-url("../icons/play.svg");
+                colorize: Theme.text-primary;
+                width: 18px;
+                height: 18px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+            }
+        }
+
+        //art + title and artist
+        Rectangle {
+            horizontal-stretch: 1;
+
+            CoverArt {
+                x: 0px;
+                y: (parent.height - self.height) / 2;
+                width: 40px;
+                height: 40px;
+                border-radius: 6px;
+                art: root.song.art;
+                icon: root.icon;
+                show-icon: root.show-icon;
+                icon-scale: 0.55;
+            }
+
+            VerticalLayout {
+                x: 52px;
+                width: max(0px, parent.width - 52px - 12px);
+                height: parent.height;
+                alignment: center;
+                spacing: 1px;
+
+                Text {
+                    text: root.song.title;
+                    color: Theme.text-primary;
+                    font-size: 15px;
+                    font-weight: 700;
+                    overflow: elide;
+                }
+                Text {
+                    text: root.song.artist;
+                    color: Theme.text-muted;
+                    font-size: 13px;
+                    font-weight: 700;
+                    overflow: elide;
+                }
+            }
+        }
+
+        //album
+        if root.show-album : Rectangle {
+            width: Theme.col-album;
+            Text {
+                x: 8px;
+                width: parent.width - 16px;
+                height: parent.height;
+                text: root.song.album == "" ? "-" : root.song.album;
+                color: Theme.text-primary;
+                font-size: 15px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+
+        //date added
+        if root.show-date : Rectangle {
+            width: Theme.col-date;
+            Text {
+                x: 8px;
+                width: parent.width - 16px;
+                height: parent.height;
+                text: root.song.date-added;
+                color: Theme.text-primary;
+                font-size: 15px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+
+        //length
+        Rectangle {
+            width: Theme.col-length;
+            Text {
+                width: 100%;
+                height: 100%;
+                text: root.song.length;
+                color: Theme.text-primary;
+                font-size: 15px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+}

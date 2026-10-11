@@ -1,0 +1,105 @@
+import { Theme } from "../theme.slint";
+
+//one profile on the login screen
+export struct ProfileInfo {
+    name: string,
+    picture: image,        //empty = gradient with the profile icon
+}
+
+//square card on the login screen. Children go inside; hover lightens it.
+export component LoginCard inherits Rectangle {
+    in property <brush> fill: Theme.primary;
+    callback clicked();
+
+    width: Theme.login-card-width;
+    height: Theme.login-card-height;
+    border-radius: 10px;
+    border-width: 1px;
+    border-color: Theme.login-card-border;
+    background: root.fill;
+    clip: true;
+
+    @children
+
+    //hover wash
+    Rectangle {
+        background: touch.has-hover ? #ffffff1f : transparent;
+        animate background { duration: Theme.anim-fast; }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+//"Add Profile" / "Guest Mode": label on top, big icon underneath
+export component ActionCard inherits LoginCard {
+    in property <string> label;
+    in property <image> icon;
+
+    Text {
+        y: 22px;
+        width: parent.width - 16px;
+        x: 8px;
+        height: 22px;
+        text: root.label;
+        color: Theme.text-primary;
+        font-size: 15px;
+        font-weight: 800;
+        horizontal-alignment: center;
+        overflow: elide;
+    }
+    Image {
+        source: root.icon;
+        colorize: Theme.text-primary;
+        width: 56px;
+        height: 56px;
+        x: (parent.width - self.width) / 2;
+        y: 62px;
+    }
+}
+
+//one saved profile: picture (or gradient + profile icon) with the name under it
+export component ProfileCard inherits LoginCard {
+    in property <string> name;
+    in property <image> picture;
+    property <bool> has-picture: root.picture.width > 0 && root.picture.height > 0;
+
+    Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: 20px;
+        width: 76px;
+        height: 76px;
+        border-radius: self.width / 2;
+        clip: true;
+        background: Theme.art-gradient;
+
+        if !root.has-picture : Image {
+            source: @image-url("../icons/user.svg");
+            colorize: Theme.text-primary;
+            width: 46px;
+            height: 46px;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+        }
+        if root.has-picture : Image {
+            source: root.picture;
+            width: 100%;
+            height: 100%;
+            image-fit: cover;
+        }
+    }
+    Text {
+        x: 8px;
+        y: 108px;
+        width: parent.width - 16px;
+        height: 24px;
+        text: root.name;
+        color: Theme.text-primary;
+        font-size: 14px;
+        font-weight: 800;
+        horizontal-alignment: center;
+        overflow: elide;
+    }
+}

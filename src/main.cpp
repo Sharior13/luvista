@@ -2,21 +2,23 @@
 #include "audio/miniaudioBackend.h"
 #include "core/trackList.h"
 #include "core/playerController.h"
-#include "app/consoleUI.h"
+#include "app/uiBridge.h"
+#include "app.h"
 
-const std::string MUSIC_FOLDER = "C:/Users/LENOVO/Documents/CODEs/Music Player/luvista/src/audio";
+// Folder scanned at startup. "add a new folder" on the All Songs page adds more.
+const std::string MUSIC_FOLDER = "C:/Projects/luvista/src/audio";
 
 int main()
 {
-    // static = one copy that lives OUTSIDE the stack. The song array alone is
-    // about 1.4 MB, while a normal stack only has 1 MB - so it must not go there.
-    static MiniaudioBackend audio;
-    static TrackList tracks;
-    static PlayerController player(audio, tracks);
+    MiniaudioBackend audio;
+    TrackList tracks;
+    PlayerController player(audio, tracks);
+    player.openFolder(MUSIC_FOLDER);        // songs found earlier are loaded from the index even if this fails
 
-    ConsoleUI ui(player);
-    ui.run(MUSIC_FOLDER);
-     //auto ui = AppWindow::create();
-    // ui->run();
+    auto ui = AppWindow::create();
+    UiBridge bridge(*ui, player, tracks);
+    bridge.start();
+
+    ui->run();
     return 0;
 }

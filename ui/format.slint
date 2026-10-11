@@ -1,0 +1,24 @@
+//small text helpers for the page headers ("3 songs, 10.4 mins")
+export global Format {
+    //10.4, or just 3 when there is no decimal part
+    pure public function minutes(seconds: float) -> string {
+        if (Math.mod(Math.round(seconds / 6), 10) == 0) {
+            return "\{Math.round(seconds / 60)}";
+        }
+        return "\{Math.floor(Math.round(seconds / 6) / 10)}.\{Math.mod(Math.round(seconds / 6), 10)}";
+    }
+
+    pure public function songs(count: int, seconds: float) -> string {
+        if (count == 1) {
+            return "1 song, \{minutes(seconds)} mins";
+        }
+        return "\{count} songs, \{minutes(seconds)} mins";
+    }
+
+    pure public function recordings(count: int) -> string {
+        if (count == 1) {
+            return "1 Recording";
+        }
+        return "\{count} Recordings";
+    }
+}

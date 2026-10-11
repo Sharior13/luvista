@@ -1,0 +1,52 @@
+import { Theme } from "../theme.slint";
+
+//square art. the gradient is always underneath, so it shows whenever there is no image.
+export component CoverArt inherits Rectangle {
+    in property <image> art;               //empty = gradient only
+    in property <image> icon;
+    in property <bool> show-icon: false;
+    in property <float> icon-scale: 0.5;   //icon size as a fraction of the square
+    in property <bool> hovered: false;     //set by the page; zooms the art and dims it
+    in property <image> hover-icon;        //drawn over the dimmed art while hovered (e.g. edit pencil)
+    property <float> zoom: root.hovered ? 1.08 : 1.0;
+
+    border-radius: 8px;
+    clip: true;
+    background: Theme.art-gradient;
+
+    Image {
+        source: root.art;
+        width: parent.width * root.zoom;
+        height: parent.height * root.zoom;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        image-fit: cover;
+        animate width, height, x, y { duration: Theme.anim-fast; }
+    }
+
+    if root.show-icon : Image {
+        source: root.icon;
+        colorize: Theme.text-primary;
+        width: Math.min(root.width, root.height) * root.icon-scale * root.zoom;
+        height: self.width;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        animate width, height, x, y { duration: Theme.anim-fast; }
+        visible: !(root.hovered && root.hover-icon.width > 0);
+    }
+
+    //dark backdrop on hover
+    Rectangle {
+        background: root.hovered ? #000000a6 : transparent;
+        animate background { duration: Theme.anim-fast; }
+    }
+
+    if root.hovered && root.hover-icon.width > 0 : Image {
+        source: root.hover-icon;
+        colorize: Theme.text-primary;
+        width: Math.min(root.width, root.height) * 0.36;
+        height: self.width;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+    }
+}

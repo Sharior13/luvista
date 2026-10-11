@@ -1,0 +1,312 @@
+import { Theme } from "../theme.slint";
+import { PageScroll } from "page-scroll.slint";
+import { CoverArt } from "cover-art.slint";
+import { SearchField } from "search-field.slint";
+import { SongInfo, SongRow } from "song-row.slint";
+import { SongTableHeader } from "song-table-header.slint";
+import { SortMenu } from "sort-menu.slint";
+
+//shared layout of the Songs, Favorites, Recordings and Playlist pages
+export component LibraryPage inherits Rectangle {
+    //heading
+    in property <string> page-title;
+    in property <string> name;
+    in property <string> subtitle;
+    in property <image> header-art;               //empty = gradient
+    in property <image> header-icon;              //white icon drawn on the gradient
+    in property <bool> header-show-icon: true;
+    in property <bool> header-hover: false;       //hover effect on the header art (playlist page)
+    in property <image> header-hover-icon;        //shown over the dimmed art while hovered
+
+    //toolbar
+    in property <bool> show-search: true;
+    in property <string> search-placeholder: "Search";
+    in property <bool> show-play: true;           //round play button + shuffle
+    in property <string> action-label;            //e.g. "Start Recording", empty = no button
+    in property <image> action-icon;
+    in property <[string]> sort-options: ["Recently added", "Title", "Artist", "Length"];
+    in-out property <int> sort-index: 0;
+    in-out property <string> search-text;
+
+    //list
+    in property <[SongInfo]> songs;
+    in property <string> length-label: "Length";
+    in property <image> row-icon;                 //icon on every row's art (recordings)
+    in property <bool> row-show-icon: false;
+    in property <string> empty-text;
+    in property <string> empty-link;              //underlined and clickable, right after empty-text
+
+    callback song-clicked(int);
+    callback play-clicked();
+    callback shuffle-clicked();
+    callback action-clicked();
+    callback search-edited(string);
+    callback sort-changed(int);
+    callback empty-link-clicked();
+    callback header-clicked();                    //click on the header art (only when header-hover is on)
+
+    property <bool> compact: root.width < Theme.bp-date;
+    property <length> pad: root.compact ? 20px : 36px;
+    property <length> art-size: root.compact ? 88px : 112px;
+    property <bool> show-album: root.width >= Theme.bp-album;
+    property <bool> show-date: root.width >= Theme.bp-date;
+    property <length> search-w: Math.min(300px, root.width * 0.4);
+    property <bool> has-search: root.show-search && root.width >= 480px;   //only a really tiny page drops the search box
+    property <bool> searching: root.search-text != "";
+
+    PageScroll {
+        VerticalLayout {
+            spacing: 0px;
+
+            //page title
+            Rectangle {
+                height: root.compact ? 76px : 96px;
+
+                Text {
+                    x: root.pad;
+                    width: parent.width - 2 * root.pad;
+                    height: parent.height;
+                    text: root.page-title;
+                    color: Theme.text-primary;
+                    font-size: root.compact ? 34px : 44px;
+                    font-weight: 800;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+            }
+
+            //band: cover, name, summary and search
+            Rectangle {
+                height: root.art-size + 24px;
+                background: Theme.header-band;
+
+                cover := CoverArt {
+                    x: root.pad;
+                    y: (parent.height - self.height) / 2;
+                    width: root.art-size;
+                    height: root.art-size;
+                    art: root.header-art;
+                    icon: root.header-icon;
+                    show-icon: root.header-show-icon;
+                    hovered: root.header-hover && cover-touch.has-hover;
+                    hover-icon: root.header-hover-icon;
+                }
+
+                //reports hover for the cover and, on pages with header-hover, handles clicks on it
+                cover-touch := TouchArea {
+                    mouse-cursor: root.header-hover ? MouseCursor.pointer : MouseCursor.default;
+                    clicked => { if (root.header-hover) { root.header-clicked(); } }
+                    x: cover.x;
+                    y: cover.y;
+                    width: cover.width;
+                    height: cover.height;
+                }
+
+                VerticalLayout {
+                    x: cover.x + cover.width + 20px;
+                    width: max(0px, parent.width - self.x - root.pad - (root.has-search ? root.search-w + 16px : 0px));
+                    height: parent.height;
+                    alignment: center;
+                    spacing: 4px;
+
+                    Text {
+                        text: root.name;
+                        color: Theme.text-primary;
+                        font-size: root.compact ? 24px : 32px;
+                        font-weight: 800;
+                        overflow: elide;
+                    }
+                    Text {
+                        text: root.subtitle;
+                        color: Theme.text-primary;
+                        font-size: 13px;
+                        font-weight: 700;
+                        overflow: elide;
+                    }
+                }
+
+                if root.has-search : SearchField {
+                    x: parent.width - self.width - root.pad;
+                    y: (parent.height - self.height) / 2;
+                    width: root.search-w;
+                    height: 36px;
+                    background: Theme.input-bg;
+                    placeholder: root.search-placeholder;
+                    text <=> root.search-text;
+                    edited(t) => { root.search-edited(t); }
+                }
+            }
+
+            //toolbar
+            Rectangle {
+                height: 76px;
+
+                //play the whole list
+                if root.show-play : Rectangle {
+                    x: root.pad;
+                    y: (parent.height - self.height) / 2;
+                    width: 48px;
+                    height: 48px;
+                    border-radius: self.width / 2;
+                    background: play-touch.has-hover ? Theme.play-button-hover : Theme.play-button;
+                    animate background { duration: Theme.anim-fast; }
+
+                    play-touch := TouchArea {
+                        mouse-cursor: MouseCursor.pointer;
+                        clicked => { root.play-clicked(); }
+                    }
+                    Image {
+                        source: @image-url("../icons/play.svg");
+                        width: 24px;
+                        height: 24px;
+                        x: (parent.width - self.width) / 2 + 1px;
+                        y: (parent.height - self.height) / 2;
+                    }
+                }
+
+                //shuffle the whole list
+                if root.show-play : Rectangle {
+                    x: root.pad + 48px + 12px;
+                    y: (parent.height - self.height) / 2;
+                    width: 44px;
+                    height: 44px;
+                    border-radius: self.width / 2;
+                    background: shuffle-touch.has-hover ? Theme.nav-hover : transparent;
+
+                    shuffle-touch := TouchArea {
+                        mouse-cursor: MouseCursor.pointer;
+                        clicked => { root.shuffle-clicked(); }
+                    }
+                    Image {
+                        source: @image-url("../icons/shuffle.svg");
+                        colorize: shuffle-touch.has-hover ? Theme.text-primary : Theme.control-muted;
+                        width: 28px;
+                        height: 28px;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                    }
+                }
+
+                //action button (Start Recording)
+                if root.action-label != "" : Rectangle {
+                    x: root.pad;
+                    y: (parent.height - self.height) / 2;
+                    height: 38px;
+                    width: pill-row.preferred-width;
+                    border-radius: 12px;
+                    background: Theme.action-gradient;
+
+                    //light wash on hover
+                    Rectangle {
+                        border-radius: parent.border-radius;
+                        background: action-touch.has-hover ? #ffffff30 : transparent;
+                        animate background { duration: Theme.anim-fast; }
+                    }
+
+                    action-touch := TouchArea {
+                        mouse-cursor: MouseCursor.pointer;
+                        clicked => { root.action-clicked(); }
+                    }
+                    pill-row := HorizontalLayout {
+                        padding-left: 14px;
+                        padding-right: 14px;
+                        spacing: 8px;
+
+                        Text {
+                            text: root.action-label;
+                            color: Theme.text-primary;
+                            font-size: 15px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                        Rectangle {
+                            width: 20px;
+                            Image {
+                                source: root.action-icon;
+                                colorize: Theme.text-primary;
+                                width: 20px;
+                                height: 20px;
+                                y: (parent.height - self.height) / 2;
+                            }
+                        }
+                    }
+                }
+
+                SortMenu {
+                    x: parent.width - self.width - root.pad;
+                    y: (parent.height - self.height) / 2;
+                    options: root.sort-options;
+                    selected <=> root.sort-index;
+                    chosen(i) => { root.sort-changed(i); }
+                }
+            }
+
+            //table header, rows and the empty state
+            VerticalLayout {
+                padding-left: root.pad;
+                padding-right: root.pad;
+                spacing: 2px;
+
+                SongTableHeader {
+                    show-album: root.show-album;
+                    show-date: root.show-date;
+                    length-label: root.length-label;
+                }
+
+                if root.songs.length == 0 : Rectangle {
+                    height: 64px;
+
+                    HorizontalLayout {
+                        x: 8px + Theme.col-index;
+                        width: max(0px, parent.width - self.x - 8px);
+                        alignment: start;
+
+                        Text {
+                            text: root.searching ? "No results for “\{root.search-text}”" : root.empty-text;
+                            color: Theme.text-primary;
+                            font-size: 15px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+
+                        if !root.searching && root.empty-link != "" : Rectangle {
+                            width: link-text.preferred-width;
+
+                            link-touch := TouchArea {
+                                mouse-cursor: MouseCursor.pointer;
+                                clicked => { root.empty-link-clicked(); }
+                            }
+                            link-text := Text {
+                                width: 100%;
+                                height: 100%;
+                                text: root.empty-link;
+                                color: Theme.text-primary;
+                                font-size: 15px;
+                                font-weight: 700;
+                                vertical-alignment: center;
+                            }
+                            Rectangle {
+                                y: parent.height / 2 + 10px;
+                                height: 1.5px;
+                                background: Theme.text-primary;
+                            }
+                        }
+                    }
+                }
+
+                for s[i] in root.songs : SongRow {
+                    index: i;
+                    song: s;
+                    icon: root.row-icon;
+                    show-icon: root.row-show-icon;
+                    show-album: root.show-album;
+                    show-date: root.show-date;
+                    clicked => { root.song-clicked(i); }
+                }
+            }
+
+            //breathing room at the bottom of the scroll area
+            Rectangle { height: 40px; }
+        }
+    }
+}

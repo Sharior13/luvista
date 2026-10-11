@@ -13,7 +13,13 @@ namespace fs = std::filesystem;
 // Says yes if a file is a music file (looks only at the ending, like ".mp3").
 static bool isMusic(const fs::path& p)
 {
-    std::string ending = p.extension().string();
+    std::string ending;
+    try {
+        ending = p.extension().string();
+    }
+    catch (const std::system_error&) {
+        return false;   // an ending we cannot read as plain text is not ".mp3" etc.
+    }
 
     for (char& c : ending)
         c = (char)std::tolower((unsigned char)c);

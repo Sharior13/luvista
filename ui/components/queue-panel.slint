@@ -1,0 +1,240 @@
+import { Theme } from "../theme.slint";
+import { SongInfo } from "song-row.slint";
+import { PageScroll } from "page-scroll.slint";
+
+//one track in the queue panel: art, title and artist. The playing one gets a pink title.
+component QueueRow inherits Rectangle {
+    in property <string> title;
+    in property <string> artist;
+    in property <image> art;
+    in property <bool> current: false;     //the track that is playing right now, not clickable
+    callback clicked();
+
+    height: 56px;
+    border-radius: 8px;
+    background: touch.has-hover ? Theme.nav-hover : transparent;
+    animate background { duration: Theme.anim-fast; }
+
+    touch := TouchArea {
+        enabled: !root.current;
+        mouse-cursor: root.current ? MouseCursor.default : MouseCursor.pointer;
+        clicked => { root.clicked(); }
+    }
+
+    Rectangle {
+        x: 6px;
+        y: (parent.height - self.height) / 2;
+        width: 44px;
+        height: 44px;
+        border-radius: 5px;
+        clip: true;
+        background: @linear-gradient(135deg, Theme.playlist-art-start 0%, Theme.playlist-art-end 100%);
+
+        Image {
+            source: @image-url("../icons/music.svg");
+            colorize: Theme.text-primary;
+            width: 18px;
+            height: 18px;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            opacity: 0.85;
+        }
+        Image {
+            source: root.art;
+            width: 100%;
+            height: 100%;
+            image-fit: cover;
+        }
+    }
+
+    VerticalLayout {
+        x: 6px + 44px + 12px;
+        width: max(0px, parent.width - self.x - 6px);
+        height: parent.height;
+        alignment: center;
+        spacing: 2px;
+
+        Text {
+            text: root.title;
+            color: root.current ? Theme.pink : Theme.text-primary;
+            font-size: 14px;
+            font-weight: 700;
+            overflow: elide;
+        }
+        Text {
+            text: root.artist;
+            color: Theme.control-muted;
+            font-size: 12px;
+            font-weight: 700;
+            overflow: elide;
+        }
+    }
+}
+
+//"Queue" / "Recently played" tab, pink bar under the active one
+component TabLabel inherits Rectangle {
+    in property <string> text;
+    in property <bool> active;
+    callback clicked();
+
+    width: label.preferred-width;
+    height: 34px;
+
+    label := Text {
+        y: 0px;
+        height: parent.height - 3px;
+        text: root.text;
+        color: root.active || touch.has-hover ? Theme.text-primary : Theme.control-muted;
+        font-size: 14px;
+        font-weight: 700;
+        vertical-alignment: center;
+        animate color { duration: Theme.anim-fast; }
+    }
+    Rectangle {
+        y: parent.height - self.height;
+        height: 3px;
+        border-radius: 2px;
+        background: root.active ? Theme.pink : transparent;
+    }
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+//queue panel, docked on the right edge of the window
+export component QueuePanel inherits Rectangle {
+    in property <string> now-title;
+    in property <string> now-artist;
+    in property <image> now-art;
+    in property <string> context;               //name of what the queue was started from, "" = no name
+    in property <[SongInfo]> queue;             //the whole queue in play order
+    in property <int> current-index;            //position of the playing track in queue
+    in property <[SongInfo]> recent;            //recently played tracks, newest first
+    callback closed();
+    callback queue-track-clicked(int);          //index into queue
+    callback recent-track-clicked(int);         //index into recent
+
+    property <int> tab: 0;                      //0 = Queue, 1 = Recently played
+
+    background: Theme.primary;
+    clip: true;
+
+    //tabs and close button, pinned to the top
+    Rectangle {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: 48px;
+
+        HorizontalLayout {
+            padding-left: 14px;
+            padding-top: 8px;
+            spacing: 16px;
+            alignment: start;
+
+            TabLabel {
+                text: "Queue";
+                active: root.tab == 0;
+                clicked => { root.tab = 0; }
+            }
+            TabLabel {
+                text: "Recently played";
+                active: root.tab == 1;
+                clicked => { root.tab = 1; }
+            }
+        }
+
+        Rectangle {
+            x: parent.width - self.width - 8px;
+            y: (parent.height - self.height) / 2 + 2px;
+            width: 28px;
+            height: 28px;
+            border-radius: self.width / 2;
+            background: close-touch.has-hover ? Theme.nav-hover : transparent;
+            animate background { duration: Theme.anim-fast; }
+
+            Image {
+                source: @image-url("../icons/close.svg");
+                colorize: Theme.icon-dim;
+                width: 14px;
+                height: 14px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+            }
+            close-touch := TouchArea {
+                mouse-cursor: MouseCursor.pointer;
+                clicked => { root.closed(); }
+            }
+        }
+    }
+
+    PageScroll {
+        x: 0px;
+        y: 48px;
+        width: parent.width;
+        height: parent.height - 48px;
+
+        VerticalLayout {
+            padding-left: 8px;
+            padding-right: 12px;
+            padding-bottom: 12px;
+            spacing: 2px;
+
+            //queue tab
+            if root.tab == 0 : Text {
+                text: "Now playing";
+                height: 36px;
+                x: 6px;
+                color: Theme.text-primary;
+                font-size: 16px;
+                font-weight: 800;
+                vertical-alignment: center;
+            }
+            if root.tab == 0 : QueueRow {
+                title: root.now-title;
+                artist: root.now-artist;
+                art: root.now-art;
+                current: true;
+            }
+
+            if root.tab == 0 && root.queue.length > root.current-index + 1 : Text {
+                text: root.context == "" ? "Next up" : "Next from: " + root.context;
+                height: 46px;
+                x: 6px;
+                color: Theme.text-primary;
+                font-size: 16px;
+                font-weight: 800;
+                vertical-alignment: bottom;
+                overflow: elide;
+            }
+            for s[i] in root.queue : VerticalLayout {
+                if root.tab == 0 && i > root.current-index : QueueRow {
+                    title: s.title;
+                    artist: s.artist;
+                    art: s.art;
+                    clicked => { root.queue-track-clicked(i); }
+                }
+            }
+
+            //recently played tab 
+            if root.tab == 1 && root.recent.length == 0 : Text {
+                text: "Nothing played yet";
+                height: 80px;
+                color: Theme.control-muted;
+                font-size: 14px;
+                font-weight: 700;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            for s[i] in root.recent : VerticalLayout {
+                if root.tab == 1 : QueueRow {
+                    title: s.title;
+                    artist: s.artist;
+                    art: s.art;
+                    clicked => { root.recent-track-clicked(i); }
+                }
+            }
+        }
+    }
+}

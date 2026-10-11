@@ -1,0 +1,32 @@
+import { LibraryPage } from "../components/library-page.slint";
+import { SongInfo } from "../components/song-row.slint";
+import { Format } from "../format.slint";
+
+//recordings page. rvery row shows the gradient with a white microphone, no album art
+export component RecordingsView inherits Rectangle {
+    in property <[SongInfo]> recordings;
+    callback song-clicked(int);
+    callback start-recording();
+    callback search-edited(string);
+    callback sort-changed(int);
+
+    LibraryPage {
+        page-title: "Recordings";
+        name: "Recorded Songs";
+        subtitle: Format.recordings(root.recordings.length);
+        header-icon: @image-url("../icons/lyrics.svg");
+        search-placeholder: "Search Recordings";
+        show-play: false;
+        action-label: "Start Recording";
+        action-icon: @image-url("../icons/record.svg");
+        row-icon: @image-url("../icons/lyrics.svg");
+        row-show-icon: true;
+        songs: root.recordings;
+        empty-text: "No Recordings yet. Click on Start Recording to create a new one";
+
+        song-clicked(i) => { root.song-clicked(i); }
+        action-clicked => { root.start-recording(); }
+        search-edited(t) => { root.search-edited(t); }
+        sort-changed(i) => { root.sort-changed(i); }
+    }
+}
