@@ -64,6 +64,7 @@ void UiBridge::connectSongPages()
         });
 
     state().on_add_folder([this] { addFolder(); });
+    state().on_remove_music_folder([this](int row) { removeFolder(row); });
 
     state().on_search_changed([this](slint::SharedString text) { searchEverywhere(toStd(text)); });
     state().on_search_submitted([this](slint::SharedString text) { searchEverywhere(toStd(text)); });
@@ -348,20 +349,34 @@ void UiBridge::refreshTopArtists()
 }
 
 
-// "128 songs - C:/Users/me/Music - 3 recordings"
+// "128 songs in 2 folders, 3 recordings"
 void UiBridge::refreshStorage()
 {
-    std::string text = UiConvert::countOf(library.size(), "song");
-
-    if (!library.folder().empty())
-        text += " in " + library.folder();
+    std::string text = UiConvert::countOf(library.size(), "song") + " in " + UiConvert::countOf(folders.count(), "folder");
 
     text += ", " + UiConvert::countOf(recordings.count(), "recording");
     state().set_storage_text(toSlint(text));
+    refreshFolders();
 }
 
 
-// "Add folder": the user picks one and its songs join the library
+// the list in the settings: the default folder first, then the ones the user added
+void UiBridge::refreshFolders()
+{
+    std::vector<MusicFolderInfo> rows;
+
+    for (int row = 0; row < folders.count(); row++) {
+        MusicFolderInfo info;
+        info.path = toSlint(folders.path(row));
+        info.is_default = folders.isDefault(row);
+        rows.push_back(info);
+    }
+
+    state().set_music_folders(std::make_shared<slint::VectorModel<MusicFolderInfo>>(rows));
+}
+
+
+// "Add folder": the user picks one, it joins the list and its songs join the library
 void UiBridge::addFolder()
 {
     std::string folder = Os::chooseFolder();
@@ -369,6 +384,18 @@ void UiBridge::addFolder()
     if (folder.empty())
         return;
 
-    player.openFolder(folder);
+    std::string why;
+
+    state().set_folder_error(folders.add(folder, why) ? "" : toSlint(why));
+    reloadLibrary();
+}
+
+
+// confirmed in the "Remove folder?" window: its songs leave the library, the files stay
+void UiBridge::removeFolder(int row)
+{
+    std::string why;
+
+    state().set_folder_error(folders.remove(row, why) ? "" : toSlint(why));
     reloadLibrary();
 }

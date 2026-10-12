@@ -52,7 +52,8 @@ private:
 public:
     PlayerController(AudioBackend& a, TrackList& t);
 
-    bool openFolder(const std::string& folder);
+    void forgetSongsInside(const std::string& folder, const std::vector<std::string>& keepFolders);
+    bool openFolder(const std::string& folder, bool bringBackRemoved = false);   // bringBackRemoved: the user picked this folder on purpose
 
     void next();
     void previous();
@@ -124,7 +125,7 @@ public:
     bool removeFromPlaylistRow(const std::string& name, int row);  // takes song row n out of a playlist
     bool deletePlaylist(const std::string& name);                  // deletes a whole playlist
     void clearFavorites();                                         // empties the favorites list
-    bool removeSongFromLibrary(int songNumber);                    // forgets a song (the file stays on disk)
+    bool removeSongFromLibrary(int songNumber, bool hide = true);                    // forgets a song (the file stays on disk)
     std::string playlistArt(const std::string& name) const;                    // the picture file chosen for a playlist, "" if none
     bool setPlaylistArt(const std::string& name, const std::string& imagePath); // copies a png/jpg in as the playlist's picture
     int playlistSongCount(const std::string& name) const;

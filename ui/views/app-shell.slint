@@ -256,6 +256,8 @@ export component AppShell inherits Rectangle {
             if AppState.section == NavSection.settings && AppState.selected-playlist < 0 : SettingsView {
                 account-name: AppState.profile-name;
                 storage-text: AppState.storage-text;
+                music-folders: AppState.music-folders;
+                folder-error: AppState.folder-error;
                 languages: AppState.languages;
                 themes: AppState.themes;
                 language-index <=> AppState.language-index;
@@ -267,6 +269,10 @@ export component AppShell inherits Rectangle {
                 theme-changed(i) => { AppState.theme-changed(i); }
                 autoplay-toggled(on) => { AppState.autoplay-toggled(on); }
                 add-folder => { AppState.add-folder(); }
+                remove-folder(i) => {
+                    AppState.pending-row = i;
+                    AppState.dialog = DialogKind.remove-folder;
+                }
                 logout-clicked => { Session.logout(); }
             }
         }
@@ -426,6 +432,22 @@ export component AppShell inherits Rectangle {
             AppState.delete-playlist(AppState.pending-playlist);
             root.close-dialog();
             root.open-page(NavSection.home);
+        }
+    }
+
+    if AppState.dialog == DialogKind.remove-folder : ConfirmDialog {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        title: "Remove folder?";
+        message: "The songs from \"\{AppState.music-folders[AppState.pending-row].path}\" will leave your library. The files stay on your computer.";
+        confirm-label: "Remove";
+
+        closed => { root.close-dialog(); }
+        confirmed => {
+            AppState.remove-music-folder(AppState.pending-row);
+            root.close-dialog();
         }
     }
 

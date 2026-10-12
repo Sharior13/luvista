@@ -1,5 +1,7 @@
 ﻿#include "trackList.h"
 #include "appPaths.h"
+#include "pathUtil.h"
+#include <algorithm>
 #include <fstream>
 #include <filesystem>
 #include <chrono>
@@ -29,27 +31,17 @@ static bool isMusic(const fs::path& p)
 }
 
 
-// Small letters and "/" slashes only, so two ways of writing the same address compare equal.
-static std::string plainAddress(std::string text)
-{
-    for (char& c : text)
-        c = c == '\\' ? '/' : (char)std::tolower((unsigned char)c);
-
-    return text;
-}
-
-
 // Says yes when the file is a microphone recording: it lives in the Windows recordings folder
 // (Documents\Sound Recordings) or inside one of the profile folders (where Luvista saves its own).
 // Recordings have their own screen and must NEVER show up as music - even when the music
 // folder covers them.
 static bool isRecordingFile(const fs::path& p)
 {
-    static const std::string profiles = plainAddress(AppPaths::profilesFolder()) + "/";
+    static const std::string profiles = PathUtil::plain(AppPaths::profilesFolder()) + "/";
     std::string where;
 
     try {
-        where = plainAddress(p.string());
+        where = PathUtil::plain(p.string());
     }
     catch (const std::system_error&) {
         return false;   // a name plain text cannot hold: scan() skips such a file anyway
@@ -361,6 +353,7 @@ TrackList::TrackList()
     songCount = 0;
     songs.resize(capacity);     // heap storage, so the object itself stays small
     loadFile();
+    loadRemoved();
 }
 
 
@@ -469,7 +462,7 @@ bool TrackList::scan(const std::string& folderPath)
                 continue;   // a file name plain text cannot hold (emoji, other scripts ...): skip this file
             }
 
-            if (find(path) == 0) {                        // a new song
+            if (find(path) == 0 && !isRemoved(path)) {    // a new song (not one the user removed)
                 Song s;
                 s.id = nextId;
                 s.path = path;
@@ -494,10 +487,15 @@ bool TrackList::scan(const std::string& folderPath)
 
 
 // Takes song number n out of the list. The music file itself stays on disk.
-bool TrackList::removeSong(int n)
+bool TrackList::removeSong(int n, bool hide)
 {
     if (n < 1 || n > songCount)
         return false;
+
+    if (hide) {                                 // remember it, or the next scan finds the file and adds it again
+        removed.push_back(songs[n - 1].path);
+        saveRemoved();
+    }
 
     // take songs[n-1] out: every song behind it moves one place up
     for (int i = n; i < songCount; i++)
@@ -625,4 +623,43 @@ bool TrackList::matches(int n, const std::string& query) const
 std::string TrackList::getFolder() const
 {
     return folder;
+}
+
+
+bool TrackList::isRemoved(const std::string& path) const
+{
+    return std::find(removed.begin(), removed.end(), path) != removed.end();
+}
+
+
+void TrackList::loadRemoved()
+{
+    removed.clear();
+    std::ifstream in(AppPaths::removedFile());
+    std::string line;
+
+    while (std::getline(in, line)) {
+        if (!line.empty())
+            removed.push_back(line);
+    }
+}
+
+
+void TrackList::saveRemoved() const
+{
+    std::ofstream out(AppPaths::removedFile(), std::ios::trunc);
+
+    for (const std::string& path : removed)
+        out << path << "\n";
+}
+
+
+// "Add folder" is a clear wish to have these songs: the ones removed from it earlier come back
+void TrackList::restoreRemoved(const std::string& folder)
+{
+    removed.erase(std::remove_if(removed.begin(), removed.end(), [&](const std::string& path) {
+        return PathUtil::isInside(path, folder);
+        }), removed.end());
+
+    saveRemoved();
 }

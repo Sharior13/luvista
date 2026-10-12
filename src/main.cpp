@@ -3,6 +3,7 @@
 #include "audio/Recorder.h"
 #include "core/appPaths.h"
 #include "core/library.h"
+#include "core/musicFolders.h"
 #include "core/playerController.h"
 #include "core/recordings.h"
 #include "core/settings.h"
@@ -25,12 +26,14 @@ int main()
     Settings settings;
     Recordings recordings;
 
-    // Songs found earlier are loaded from the index even if this folder does not exist.
-    // "Add folder" on the All Songs page adds more.
-    player.openFolder(AppPaths::defaultMusicFolder());
+    // The songs come from the music folders of the settings (the default Music folder and the ones the user added).
+    // Songs found earlier are loaded from the index even if a folder does not exist any more.
+    MusicFolders folders(player);
+    folders.load();
+    folders.rescanAll();
 
     auto ui = AppWindow::create();
-    UiBridge bridge(*ui, player, tracks, library, session, settings, recordings, recorder);
+    UiBridge bridge(*ui, player, tracks, library, session, settings, recordings, recorder, folders);
     bridge.start();
 
     ui->run();

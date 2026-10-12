@@ -7,9 +7,10 @@ import { PlaylistChoice } from "components/add-to-playlist.slint";
 import { LyricLine } from "components/lyrics-panel.slint";
 import { ArtistInfo } from "components/artist-tile.slint";
 import { RecordState } from "components/recorder-dialog.slint";
+import { MusicFolderInfo } from "views/settings-view.slint";
 
 //re-exported so app.slint can hand them to the C++ side
-export { TrackInfo, PlaylistInfo, NavSection, SongInfo, PlaylistChoice, LyricLine, ArtistInfo, RecordState }
+export { TrackInfo, PlaylistInfo, NavSection, SongInfo, PlaylistChoice, LyricLine, ArtistInfo, RecordState, MusicFolderInfo }
 
 //the window in front of the page, if any. Only one at a time.
 export enum DialogKind {
@@ -19,6 +20,7 @@ export enum DialogKind {
     delete-playlist,    //are you sure, then delete-playlist
     pick-playlist,      //"Add to playlist" for a song of a "..." menu
     delete-song,        //are you sure, then delete-song
+    remove-folder,      //are you sure, then remove-music-folder
     recorder,           //Start Recording
     edit-account,       //Settings > Account > Edit
 }
@@ -90,6 +92,8 @@ export global AppState {
     in-out property <string> profile-name: MockData.enabled ? MockData.profile-name : "";
     in-out property <string> account-email;
     in-out property <[ArtistInfo]> top-artists: MockData.enabled ? MockData.top-artists : [];   //most played artists first
+    in-out property <[MusicFolderInfo]> music-folders: MockData.enabled ? MockData.music-folders : [];   //the folders the library reads, the default one first
+    in-out property <string> folder-error;            //why a folder could not be added or removed, empty = no problem
     in-out property <string> storage-text;            //"3 folders, 128 songs"
     in-out property <[string]> languages: ["English"];
     in-out property <int> language-index: 0;
@@ -159,6 +163,7 @@ export global AppState {
     callback list-search-changed(string, string);   //list, text. Filter the list and set it again
     callback list-sort-changed(string, int);     //list, index in the sort menu (0 = recently added, 1 = title, 2 = artist, 3 = length)
     callback edit-playlist-art(int);             //click on the open playlist's art, index into playlists
+    callback remove-music-folder(int);           //the trash icon of a folder in the settings
     callback add-folder();                       //"add a new folder" in the empty Songs page, and "Add folder" in settings
 
     //song "..." menus. list is "songs", "favorites", "recordings", "playlist" or "artist", row is the row as shown right now

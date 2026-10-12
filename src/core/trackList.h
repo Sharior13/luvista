@@ -23,7 +23,8 @@ public:
     TrackList();
 
     bool scan(const std::string& folderPath);
-    bool removeSong(int n);
+    bool removeSong(int n, bool hide = true);             // takes the song out of the library. The file stays on disk, and a scan will not bring it back
+    void restoreRemoved(const std::string& folder);   // songs removed earlier inside this folder may be found again (the user added it on purpose)
     std::string getFolder() const;      // the folder scanned last
 
     int         getCount() const;
@@ -44,6 +45,10 @@ private:
     int songCount;          // how many places of the array are filled
     std::vector<Song> songs;   // all songs are kept here, in memory (size is always `capacity`)
 
+    std::vector<std::string> removed;   // paths of songs the user removed
+    bool isRemoved(const std::string& path) const;
+    void loadRemoved();
+    void saveRemoved() const;
     void loadFile();            // read the notebook file into songs
     void saveFile();            // write songs into the notebook file
 };

@@ -6,6 +6,8 @@ class AppPaths {
 public:
     static std::string root();                                    // the main folder
     static std::string indexFile();                               // the list of all songs
+    static std::string musicFoldersFile();                        // the music folders the user added
+    static std::string removedFile();                             // songs the user removed: scans must not bring them back
     static std::string profilesFolder();                          // holds one folder per profile
     static std::string profileFolder(const std::string& profile); // favorites, recent, playlists, play counts
 

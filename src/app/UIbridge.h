@@ -6,6 +6,7 @@
 #include "../audio/Recorder.h"
 #include "../core/library.h"
 #include "../core/lyrics.h"
+#include "../core/musicFolders.h"
 #include "../core/playerController.h"
 #include "../core/playlistPicker.h"
 #include "../core/recordings.h"
@@ -30,7 +31,8 @@
 class UiBridge {
 public:
     UiBridge(AppWindow& window, PlayerController& player, TrackList& tracks, Library& library,
-             UserSession& session, Settings& settings, Recordings& recordings, Recorder& recorder);
+             UserSession& session, Settings& settings, Recordings& recordings, Recorder& recorder,
+             MusicFolders& folders);
 
     void start();                         // fills the screen, hooks up the buttons and starts the clock. Call once before ui.run()
 
@@ -50,6 +52,7 @@ private:
     Settings& settings;
     Recordings& recordings;
     Recorder& recorder;
+    MusicFolders& folders;
 
     ImageCache images;
     Lyrics lyrics;
@@ -106,7 +109,9 @@ private:
     void refreshHome();
     void refreshTopArtists();
     void refreshStorage();
+    void refreshFolders();                // the "Music folders" list of the settings
     void addFolder();
+    void removeFolder(int row);
     void openSongsPage();
 
     // ---- UIbridge_playlists.cpp

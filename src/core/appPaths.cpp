@@ -50,6 +50,18 @@ std::string AppPaths::indexFile()
 }
 
 
+std::string AppPaths::musicFoldersFile()
+{
+    return (fs::path(root()) / "music-folders.dat").string();
+}
+
+
+std::string AppPaths::removedFile()
+{
+    return (fs::path(root()) / "removed-songs.dat").string();
+}
+
+
 std::string AppPaths::profilesFolder()
 {
     return makeFolder(fs::path(root()) / "profiles");

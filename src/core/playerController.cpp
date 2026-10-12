@@ -1,4 +1,5 @@
 ﻿#include "playerController.h"
+#include "pathUtil.h"
 #include <algorithm>
 #include <filesystem>
 
@@ -27,8 +28,11 @@ PlayerController::PlayerController(AudioBackend& a, TrackList& t)
 
 
 // Tells the librarian to look in the folder. True if at least one song was found.
-bool PlayerController::openFolder(const std::string& folder)
+bool PlayerController::openFolder(const std::string& folder, bool bringBackRemoved)
 {
+    if (bringBackRemoved)
+        tracks.restoreRemoved(folder);
+
     tracks.scan(folder);
 
     // the scan forgets songs whose file is gone and numbers can move, so find the playing song again
@@ -1039,7 +1043,7 @@ void PlayerController::clearFavorites()
 
 // Forgets a song everywhere: the library list, favorites, recents and every playlist.
 // The music file itself stays on disk and can be found again by scanning the folder.
-bool PlayerController::removeSongFromLibrary(int songNumber)
+bool PlayerController::removeSongFromLibrary(int songNumber, bool hide)
 {
     if (songNumber < 1 || songNumber > tracks.getCount())
         return false;
@@ -1066,7 +1070,30 @@ bool PlayerController::removeSongFromLibrary(int songNumber)
         dropFromQueue(id);
     }
 
-    return tracks.removeSong(songNumber);
+    return tracks.removeSong(songNumber, hide);
+}
+
+
+// A music folder was taken off the list: its songs leave the library, except the ones another listed
+// folder still holds. The files are not hidden, so adding the folder again finds them.
+void PlayerController::forgetSongsInside(const std::string& folder, const std::vector<std::string>& keepFolders)
+{
+    for (int n = tracks.getCount(); n >= 1; n--) {
+        std::string path = tracks.getTrack(n);
+
+        if (!PathUtil::isInside(path, folder))
+            continue;
+
+        bool kept = false;
+
+        for (const std::string& other : keepFolders) {
+            if (PathUtil::isInside(path, other))
+                kept = true;
+        }
+
+        if (!kept)
+            removeSongFromLibrary(n, false);
+    }
 }
 
 // Deletes a whole playlist (its name and its songs).

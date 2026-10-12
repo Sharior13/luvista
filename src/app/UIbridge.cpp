@@ -8,8 +8,8 @@ using UiConvert::toSlint;
 using UiConvert::toStd;
 
 UiBridge::UiBridge(AppWindow& window, PlayerController& p, TrackList& t, Library& l,
-                   UserSession& s, Settings& st, Recordings& r, Recorder& rec)
-    : ui(window), player(p), tracks(t), library(l), session(s), settings(st), recordings(r), recorder(rec),
+                   UserSession& s, Settings& st, Recordings& r, Recorder& rec, MusicFolders& f)
+    : ui(window), player(p), tracks(t), library(l), session(s), settings(st), recordings(r), recorder(rec), folders(f),
       images(t, p), popup(p), pickWindow(p)
 {
 }

@@ -5,6 +5,12 @@ import { ToggleSwitch } from "../components/toggle-switch.slint";
 import { PillButton } from "../components/pill-button.slint";
 import { DialogButton, ButtonKind } from "../components/dialog-frame.slint";
 
+//one music folder of the library
+export struct MusicFolderInfo {
+    path: string,
+    is-default: bool,       //the user's Music folder: always there, cannot be removed
+}
+
 //one line of the settings card: name on the left, whatever controls it on the right
 component SettingsRow inherits Rectangle {
     in property <string> label;
@@ -47,10 +53,79 @@ component SettingsRow inherits Rectangle {
     }
 }
 
-//settings page: account, language, autoplay, storage and theme. The backend owns the values.
+//one folder of the list: its address on the left, "Default" or a remove icon on the right
+component FolderRow inherits Rectangle {
+    in property <string> path;
+    in property <bool> is-default;
+    in property <bool> last: false;
+    callback remove();
+
+    height: 52px;
+
+    Text {
+        x: 24px;
+        width: max(0px, parent.width - 48px - (root.is-default ? 80px : 40px));
+        height: parent.height;
+        text: root.path;
+        color: Theme.control-muted;
+        font-size: 14px;
+        font-weight: 700;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    if root.is-default : Rectangle {
+        x: parent.width - self.width - 24px;
+        y: (parent.height - self.height) / 2;
+        width: 64px;
+        height: 24px;
+        border-radius: 12px;
+        background: #ffffff14;
+
+        Text {
+            text: "Default";
+            color: Theme.text-muted;
+            font-size: 12px;
+            font-weight: 800;
+        }
+    }
+
+    if !root.is-default : Rectangle {
+        x: parent.width - self.width - 20px;
+        y: (parent.height - self.height) / 2;
+        width: 32px;
+        height: 32px;
+        border-radius: 16px;
+        background: remove-touch.has-hover ? #ffffff1f : transparent;
+
+        Image {
+            width: 18px;
+            height: 18px;
+            source: @image-url("../icons/trash.svg");
+            colorize: Theme.control-muted;
+        }
+
+        remove-touch := TouchArea {
+            mouse-cursor: MouseCursor.pointer;
+            clicked => { root.remove(); }
+        }
+    }
+
+    if !root.last : Rectangle {
+        x: 24px;
+        y: parent.height - 1px;
+        width: parent.width - 48px;
+        height: 1px;
+        background: #ffffff14;
+    }
+}
+
+//settings page: account, language, autoplay, music folders and theme. The backend owns the values.
 export component SettingsView inherits Rectangle {
     in property <string> account-name;
-    in property <string> storage-text;               //e.g. "3 folders, 128 songs"
+    in property <string> storage-text;               //e.g. "128 songs in 2 folders"
+    in property <[MusicFolderInfo]> music-folders;   //the default folder first
+    in property <string> folder-error;               //why the last add/remove did not work, empty = fine
     in property <[string]> languages: ["English"];
     in property <[string]> themes: ["Default"];
     in-out property <int> language-index: 0;
@@ -60,6 +135,7 @@ export component SettingsView inherits Rectangle {
     callback language-changed(int);
     callback autoplay-toggled(bool);
     callback add-folder();
+    callback remove-folder(int);
     callback theme-changed(int);
     callback logout-clicked();
 
@@ -87,13 +163,13 @@ export component SettingsView inherits Rectangle {
             }
 
             Rectangle {
-                height: 5 * 60px + 24px + 24px;
+                height: 4 * 60px + 24px + 24px;
 
                 card := Rectangle {
                     x: root.pad;
                     y: 0px;
                     width: parent.width - 2 * root.pad;
-                    height: 5 * 60px + 24px;
+                    height: 4 * 60px + 24px;
                     border-radius: 16px;
                     background: Theme.settings-card;
 
@@ -141,20 +217,6 @@ export component SettingsView inherits Rectangle {
                             }
                         }
 
-                        //storage: where the songs are read from
-                        SettingsRow {
-                            label: "Storage";
-                            hint: root.storage-text;
-
-                            PillButton {
-                                x: parent.width - self.width - 24px;
-                                y: (parent.height - self.height) / 2;
-                                label: "Add folder";
-                                icon: @image-url("../icons/folder.svg");
-                                clicked => { root.add-folder(); }
-                            }
-                        }
-
                         //themes
                         SettingsRow {
                             label: "Themes";
@@ -169,6 +231,58 @@ export component SettingsView inherits Rectangle {
                             }
                         }
                     }
+                }
+            }
+
+            //music folders: where the songs are read from
+            Rectangle {
+                height: 24px + 60px + root.music-folders.length * 52px + (root.folder-error == "" ? 0px : 32px) + 24px;
+
+                Rectangle {
+                    x: root.pad;
+                    y: 0px;
+                    width: parent.width - 2 * root.pad;
+                    height: 24px + 60px + root.music-folders.length * 52px;
+                    border-radius: 16px;
+                    background: Theme.settings-card;
+
+                    VerticalLayout {
+                        padding-top: 12px;
+                        padding-bottom: 12px;
+
+                        SettingsRow {
+                            label: "Music folders";
+                            hint: root.storage-text;
+                            last: root.music-folders.length == 0;
+
+                            PillButton {
+                                x: parent.width - self.width - 24px;
+                                y: (parent.height - self.height) / 2;
+                                label: "Add folder";
+                                icon: @image-url("../icons/folder.svg");
+                                clicked => { root.add-folder(); }
+                            }
+                        }
+
+                        for folder[i] in root.music-folders : FolderRow {
+                            path: folder.path;
+                            is-default: folder.is-default;
+                            last: i == root.music-folders.length - 1;
+                            remove => { root.remove-folder(i); }
+                        }
+                    }
+                }
+
+                if root.folder-error != "" : Text {
+                    x: root.pad + 8px;
+                    y: 24px + 60px + root.music-folders.length * 52px + 12px;
+                    width: parent.width - 2 * root.pad - 16px;
+                    height: 20px;
+                    text: root.folder-error;
+                    color: #ff8a9b;
+                    font-size: 13px;
+                    font-weight: 700;
+                    overflow: elide;
                 }
             }
 

@@ -5,6 +5,7 @@ import { ProfileInfo } from "components/login-card.slint";
 import { PlaylistChoice } from "components/add-to-playlist.slint";
 import { LyricLine } from "components/lyrics-panel.slint";
 import { ArtistInfo } from "components/artist-tile.slint";
+import { MusicFolderInfo } from "views/settings-view.slint";
 
 //one entry of the fake play queue
 export struct MockTrack {
@@ -20,6 +21,12 @@ export global MockData {
     in-out property <bool> enabled: false;
     in-out property <bool> home-feed: false;
     in-out property <bool> library-feed: false;
+
+    //settings: the folders the library reads (the default one first)
+    out property <[MusicFolderInfo]> music-folders: [
+        { path: "C:/Users/Alex/Music", is-default: true },
+        { path: "D:/Albums", is-default: false },
+    ];
 
     //profile
     out property <string> profile-initial: "A";     //first letter of the profile name
