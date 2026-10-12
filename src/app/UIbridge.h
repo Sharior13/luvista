@@ -1,130 +1,136 @@
-#pragma once
-#include <map>
+﻿#pragma once
 #include <string>
 #include <vector>
 #include "app.h"                          // made by Slint from ui/app.slint
+#include "imageCache.h"
 #include "../audio/Recorder.h"
+#include "../core/library.h"
 #include "../core/lyrics.h"
 #include "../core/playerController.h"
-#include "../core/profiles.h"
+#include "../core/playlistPicker.h"
+#include "../core/recordings.h"
+#include "../core/settings.h"
 #include "../core/trackList.h"
+#include "../core/userSession.h"
 
-// The wire between the screen (Slint) and the music player (PlayerController).
-// Clicks go from the screen to the player. Titles, lists and times go back.
+// The wire between the screen (Slint) and the program.
+//
+// Clicks go from the screen to the core classes, and what they answer goes back to the screen.
+// This class makes NO decisions of its own: searching, sorting, queues, accounts, file names and
+// the like all live in src/core (and src/audio). Here a number becomes a SongInfo, a list becomes a
+// model, a click becomes a call.
+//
+// The code is split over several files, one per part of the screen:
+//   UIbridge.cpp            start, the clock, helpers every part uses
+//   UIbridge_player.cpp     the player bar, the queue panel, the lyrics
+//   UIbridge_pages.cpp      home, All Songs, Favorites, artists, the "..." menus
+//   UIbridge_playlists.cpp  the playlists and the "add to playlist" windows
+//   UIbridge_recorder.cpp   the Start Recording window and the Recordings page
+//   UIbridge_session.cpp    login, profiles, account and settings
 class UiBridge {
-private:
-    // One song, copied out of the librarian once, so search and sort are quick.
-    struct Song {
-        int number = 0;               // the song number (1, 2, 3 ...)
-        int id = 0;                   // never changes, even when song numbers move
-        std::string path;
-        std::string title;
-        std::string artist;
-        std::string album;
-        std::string titleLow;         // the same words in small letters, for search and sort
-        std::string artistLow;
-        std::string albumLow;
-        long long added = 0;          // seconds since 1970
-        double seconds = 0;           // length of the song
-        bool recording = false;       // a microphone recording (of any profile). These are kept out of All Songs
-        bool mine = false;            // a recording of the profile that is logged in
-    };
+public:
+    UiBridge(AppWindow& window, PlayerController& player, TrackList& tracks, Library& library,
+             UserSession& session, Settings& settings, Recordings& recordings, Recorder& recorder);
 
-    // What one song page (All Songs, Favorites, a playlist or Recordings) is showing right now.
-    struct SongPage {
-        std::string search;           // in small letters
-        int sort;                     // 0 recently added, 1 title, 2 artist, 3 length
-        std::vector<int> shown;       // song numbers, in the order of the rows
-    };
+    void start();                         // fills the screen, hooks up the buttons and starts the clock. Call once before ui.run()
+
+private:
+    // The song pages. The first four are Library pages, RECORDINGS has its own list of files.
+    enum PageId { ALL_SONGS, FAVORITES, PLAYLIST, ARTIST, RECORDINGS, PAGE_COUNT };
+
+    static constexpr int HOME_ROWS = 12;          // cards in a home row
+    static constexpr int QUEUE_ROWS = 50;         // songs shown after the playing one
+    static constexpr int ARTIST_TILES = 8;        // the Top Artists row of the profile page
 
     AppWindow& ui;
     PlayerController& player;
     TrackList& tracks;
+    Library& library;
+    UserSession& session;
+    Settings& settings;
+    Recordings& recordings;
+    Recorder& recorder;
 
-    std::vector<Song> library;        // library[n] is song n. Slot 0 is empty because songs start at 1.
-    SongPage pages[4];                // All Songs, Favorites, playlist, Recordings
-
-    std::vector<std::string> playlistNames;   // same order as the sidebar
-    int openPlaylist;                         // the playlist the page shows, -1 for none
-    std::vector<std::string> choiceNames;     // the rows of the "+" popup
-    std::vector<std::string> savedAtOpen;     // playlists that had the song when the popup opened
-    std::string pickerSearch;                 // the popup's search box, in small letters
-    std::vector<int> recentNumbers;           // the songs behind the "Recently played" tab
-    std::string globalSearch;                 // what the top bar is searching for, in small letters. "" = no search going on
-
-    // pictures. Reading a picture is slow, so each one is read once and kept
-    std::map<int, std::string> coverPaths;            // song id -> picture file ("" = the song has none)
-    std::map<std::string, slint::Image> images;       // picture file -> the picture, ready for the screen
-    std::map<int, double> lengths;                    // song id -> seconds, so a file is not opened again on every login
-
-    // who is logged in
-    Profiles profiles;
-    std::vector<std::string> profileNames;    // same order as the cards on the login screen
-
-    Recorder recorder;                        // the microphone
-    Lyrics lyrics;                            // the lyrics of the playing song
-    int lastLyric;                            // the lyric line the screen shows now
-
-    int lastCurrent;                  // the song the player bar is showing
+    ImageCache images;
+    Lyrics lyrics;
+    PlaylistPicker popup;                 // the "+" popup of the player bar (about the playing song)
+    PlaylistPicker pickWindow;            // the "Add to playlist" window of a song row
     slint::Timer timer;
 
-    // Gives the AppState / Session parts of the screen.
+    // What each page shows right now, in the order of its rows: song numbers, or recording rows for RECORDINGS.
+    // The screen only sends a row number back, this is how a row becomes a song again.
+    std::vector<int> shown[PAGE_COUNT];
+    std::string recordingSearch;          // the Recordings page search text and sort (the Library keeps those of the other pages)
+    int recordingSort = 0;
+    std::vector<std::string> playlistNames;       // sidebar order
+    int openPlaylist = -1;                // index into playlistNames
+    std::vector<int> queueNumbers;        // row of the queue panel -> song number
+    std::vector<int> recentNumbers;       // row of the "recently played" tab -> song number
+    std::vector<std::string> profileCards;        // card of the login screen -> profile name
+
+    int lastCurrent = -1;
+    std::string lastName;
+    int lastLyric = -1;
+
     decltype(auto) state() const { return ui.global<AppState>(); }
-    decltype(auto) session() const { return ui.global<Session>(); }
+    decltype(auto) sessionState() const { return ui.global<Session>(); }
 
-    // Hooks the screen's callbacks up to the player.
+    static Page pageOf(PageId id);
+    static int pageIdOf(const slint::SharedString& listName);          // "songs" -> ALL_SONGS ... -1 if unknown
+
+    // ---- UIbridge.cpp
+    void refreshAll();                    // every song page, the home page and the sidebar numbers
+    void reloadLibrary();                 // songs came or went: read the library again, then refreshAll
+    SongInfo infoOf(int songNumber, const std::vector<char>& favorites);
+    SongInfo infoOf(int songNumber);
+    TrackInfo cardOf(int songNumber);
+
+    // ---- UIbridge_player.cpp
     void connectPlayerBar();
-    void connectSongPages();
-    void connectPlaylists();
-    void connectOtherScreens();
-    void connectSession();
-
-    void loadLibrary();
-    bool valid(int number) const;
-    double lengthOf(const Song& s);
-    slint::Image imageFile(const std::string& path);
-    slint::Image coverOf(int number);
-    slint::Image playlistImage(const std::string& name);
-    SongInfo infoOf(int number);
-    TrackInfo cardOf(int number);
-    std::vector<int> pageSource(int page) const;
-    std::string pageName(int page) const;
-    void refreshPage(int page);
-    void refreshAllPages();
-    void resetPage(int page);
-    void playRow(int page, int row);
-    void searchEverywhere(const std::string& text);
-
-    void refreshPlaylists();
-    bool inPlaylist(const std::string& name, int number) const;
-    std::string newPlaylistName() const;
-    void refreshChoices();
-    void refreshHeartAndTick();
-    void openPopup();
-    void toggleInPlaylist(int row);
-    void newPlaylistFromTrack();
-    void editPlaylistArt(int index);
-
-    void refreshHome();
-    void refreshQueue();
-    void refreshLyrics(int current);
-    void playCard(const std::string& title, const std::string& artist);
-
     void togglePlay();
     void setFavorite(bool on);
-    void syncPlayerBar(bool force);
+    void syncPlayerBar(bool force);       // copies what the player knows into the player bar. Cheap, so it runs often
+    void refreshQueue();
+    void refreshLyrics(int songNumber);
+    void refreshHeartAndTick();
+
+    // ---- UIbridge_pages.cpp
+    void connectSongPages();
+    void connectSongMenus();
+    void refreshPage(PageId page);
+    void resetPage(PageId page);
+    void playRow(PageId page, int row);
+    void songMenuAction(PageId page, int row, const std::string& action);
+    void deleteRow(PageId page, int row);
+    void searchEverywhere(const std::string& text);
+    void refreshHome();
+    void refreshTopArtists();
+    void refreshStorage();
     void addFolder();
     void openSongsPage();
 
-    void toggleRecording();
-    void finishRecording();
+    // ---- UIbridge_playlists.cpp
+    void connectPlaylists();
+    void refreshPlaylists();
+    void refreshPopupChoices();
+    void refreshPickChoices();
+    bool createPlaylistNamed(const std::string& name, const std::string& with);
+    void editPlaylistArt(int index);
+    void playlistChanged(const std::string& name);   // a playlist's songs changed: whatever shows it is made again
 
-    void refreshProfileList();
-    void enterProfile(const std::string& name, bool guest);
+    // ---- UIbridge_recorder.cpp
+    void connectRecorder();
+    void beginRecording(const std::string& name);
+    void stopRecording();
+    void refreshRecordings();
+    void tickRecorder();                  // the clock and the level meter of the open recorder window
+
+    // ---- UIbridge_session.cpp
+    void connectSession();
+    void connectAccount();
+    void connectSettings();
+    void refreshCards();
+    void enterProfile();                  // somebody logged in (or started guest mode): show their things
     void leaveProfile();
-
-public:
-    UiBridge(AppWindow& window, PlayerController& p, TrackList& t);
-
-    void start();
+    void showProfile();                   // the name, letter, picture and email of the logged in profile
 };

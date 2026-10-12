@@ -1,5 +1,6 @@
-import { Theme } from "../theme.slint";
+﻿import { Theme } from "../theme.slint";
 import { CoverArt } from "cover-art.slint";
+import { SongMenu } from "song-menu.slint";
 
 //one song in a list. The backend formats date-added and length as text.
 export struct SongInfo {
@@ -8,7 +9,9 @@ export struct SongInfo {
     album: string,         //empty shows "-"
     date-added: string,    //"yesterday", "2 weeks"
     length: string,        //"3:22"
-    art: image,            //empty = gradient placeholder
+    art: image,            //album art, empty = gradient placeholder
+    favorite: bool,        //the song is a favorite (the "..." menu offers Add / Remove)
+    queued: bool,          //the song is in the queue (the "..." menu offers Remove from queue)
 }
 
 //one row of a song list: number, art + title/artist, album, date added and length.
@@ -19,11 +22,15 @@ export component SongRow inherits Rectangle {
     in property <bool> show-icon: false;
     in property <bool> show-album: true;
     in property <bool> show-date: true;
+    in property <bool> show-more: true;    //the "..." button at the end of the row
+    in property <string> context: "songs"; //page the row is on, decides what the "..." menu offers
     callback clicked();
+    callback action(string);               //an entry of the "..." menu, see song-menu.slint
 
     height: Theme.row-height;
     border-radius: 8px;
-    background: touch.has-hover ? Theme.nav-hover : transparent;
+    property <bool> hot: touch.has-hover || menu.hovered;
+    background: root.hot ? Theme.nav-hover : transparent;
     animate background { duration: Theme.anim-fast; }
 
     touch := TouchArea {
@@ -40,7 +47,7 @@ export component SongRow inherits Rectangle {
             width: Theme.col-index;
 
             Text {
-                visible: !touch.has-hover;
+                visible: !root.hot;
                 text: "\{root.index + 1}";
                 color: Theme.text-primary;
                 font-size: 15px;
@@ -49,7 +56,7 @@ export component SongRow inherits Rectangle {
                 vertical-alignment: center;
             }
             Image {
-                visible: touch.has-hover;
+                visible: root.hot;
                 source: @image-url("../icons/play.svg");
                 colorize: Theme.text-primary;
                 width: 18px;
@@ -143,6 +150,17 @@ export component SongRow inherits Rectangle {
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
+        }
+
+        //"..." menu
+        menu := SongMenu {
+            width: root.show-more ? Theme.col-more : 0px;
+            visible: root.show-more;
+            context: root.context;
+            favorite: root.song.favorite;
+            queued: root.song.queued;
+            row-hover: touch.has-hover;
+            action(id) => { root.action(id); }
         }
     }
 }

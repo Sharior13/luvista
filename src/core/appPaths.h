@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <string>
 
 // Knows where Luvista keeps its files: C:\Users\<you>\AppData\Local\Luvista
@@ -18,4 +18,7 @@ public:
 
     static std::string recordingsFolder();                        // microphone recordings of the logged in profile
     static std::string coversFolder();                            // album pictures cut out of the songs
+
+    // The folder the library scans on the very first start: the user's Music folder ("" if it cannot be found).
+    static std::string defaultMusicFolder();
 };

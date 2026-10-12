@@ -1,4 +1,4 @@
-import { LibraryPage } from "../components/library-page.slint";
+﻿import { LibraryPage } from "../components/library-page.slint";
 import { SongInfo } from "../components/song-row.slint";
 import { Format } from "../format.slint";
 
@@ -11,6 +11,7 @@ export component SongsView inherits Rectangle {
     callback shuffle-clicked();
     callback search-edited(string);
     callback sort-changed(int);
+    callback song-action(int, string);    //an entry of a row's "..." menu
     callback add-folder();             //the "add a new folder" link in the empty state
 
     LibraryPage {
@@ -20,6 +21,7 @@ export component SongsView inherits Rectangle {
         header-icon: @image-url("../icons/music.svg");
         search-placeholder: "Search All Music";
         length-label: "Length";
+        list-id: "songs";
         songs: root.songs;
         empty-text: "No songs found. Go to settings to ";
         empty-link: "add a new folder";
@@ -29,6 +31,7 @@ export component SongsView inherits Rectangle {
         shuffle-clicked => { root.shuffle-clicked(); }
         search-edited(t) => { root.search-edited(t); }
         sort-changed(i) => { root.sort-changed(i); }
+        song-action(i, id) => { root.song-action(i, id); }
         empty-link-clicked => { root.add-folder(); }
     }
 }

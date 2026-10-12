@@ -1,9 +1,20 @@
-import { MockData } from "../mock-data.slint";
+﻿import { MockData } from "../mock-data.slint";
 import { AppState } from "../state.slint";
+import { RecordState } from "recorder-dialog.slint";
 
 //fake playback: moves the seek bar while the player is "playing".
 //Does nothing once MockData.enabled is false.
 export component MockBackend {
+    //fake recorder: the clock runs and the meter moves while the recorder window is recording
+    Timer {
+        interval: 100ms;
+        running: MockData.enabled && AppState.record-state == RecordState.recording;
+        triggered => {
+            AppState.record-seconds += 0.1;
+            AppState.record-level = Math.abs(Math.sin(AppState.record-seconds * 400deg));
+        }
+    }
+
     Timer {
         interval: 250ms;
         running: MockData.enabled && AppState.playing;

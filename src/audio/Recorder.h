@@ -1,6 +1,7 @@
-#pragma once
+﻿#pragma once
 
 #include <atomic>
+#include <chrono>
 #include <cstdio>
 #include <string>
 
@@ -29,18 +30,25 @@ public:
 
     bool isRecording() const;
 
+    // how loud the last piece of sound was, 0..1 (the recorder window's level meter)
+    float level() const;
+
+    // stop and throw the recording away (no MP3 is made, the temp file is deleted)
+    void discard();
+
     // why the last start()/stop() failed ("" = no problem)
     const std::string& lastError() const;
 
-    // first free name in the Windows Sound Recordings folder
-    // (Documents\Sound Recordings\rec_1.mp3, rec_2.mp3, ...). Creates the folder if missing.
-    static std::string nextRecordingPath();
+    // seconds since start() (0 when nothing is recording)
+    double seconds() const;
 
-    // the folder recordings are saved in (Documents\Sound Recordings)
-    static std::string folder();
+    // first free name in the folder (rec_1.mp3, rec_2.mp3, ...). Creates the folder if missing.
+    static std::string nextPathIn(const std::string& folder);
 
-    // how many rec_N.mp3 files are saved in the Sound Recordings folder
-    static int recordingCount();
+    // the path for a recording the user named: <folder>/<name>.mp3.
+    // Letters a file name cannot hold are dropped. An empty name gives nextPathIn(folder).
+    // "" + error filled in when the name is taken.
+    static std::string pathForName(const std::string& folder, const std::string& name, std::string& error);
 
     // raw 16-bit mono file -> MP3. Used by stop(); public so it can be tested alone.
     static bool encodeRawToMp3(const std::string& rawPath, const std::string& mp3Path,
@@ -53,7 +61,9 @@ private:
     ma_device m_device;
     std::FILE* m_file;       // temp raw file while recording
     std::atomic<bool> m_recording;
+    std::atomic<float> m_level;
     std::string m_path;      // final path (.mp3)
     std::string m_partPath;  // temp file
     std::string m_error;
+    std::chrono::steady_clock::time_point m_startedAt;
 };

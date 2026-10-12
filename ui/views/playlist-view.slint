@@ -1,4 +1,4 @@
-import { LibraryPage } from "../components/library-page.slint";
+﻿import { LibraryPage } from "../components/library-page.slint";
 import { SongInfo } from "../components/song-row.slint";
 import { Format } from "../format.slint";
 
@@ -13,6 +13,9 @@ export component PlaylistView inherits Rectangle {
     callback shuffle-clicked();
     callback search-edited(string);
     callback sort-changed(int);
+    callback song-action(int, string);    //an entry of a row's "..." menu
+    callback rename-clicked();         //the pencil next to the name
+    callback list-action(string);      //"rename", "cover" or "delete" from the playlist "..." menu
     callback edit-art-clicked();       //click on the playlist art (edit icon)
     callback browse-songs();           //the "All Songs" link in the empty state
 
@@ -23,9 +26,12 @@ export component PlaylistView inherits Rectangle {
         header-art: root.art;
         header-icon: @image-url("../icons/playlist.svg");
         header-show-icon: root.art.width == 0;
+        show-rename: true;
+        show-list-menu: true;
         header-hover: true;
         header-hover-icon: @image-url("../icons/edit.svg");
         search-placeholder: "Search \{root.title}";
+        list-id: "playlist";
         songs: root.songs;
         empty-text: "This playlist is empty. Add songs from ";
         empty-link: "All Songs";
@@ -35,7 +41,10 @@ export component PlaylistView inherits Rectangle {
         shuffle-clicked => { root.shuffle-clicked(); }
         search-edited(t) => { root.search-edited(t); }
         sort-changed(i) => { root.sort-changed(i); }
+        song-action(i, id) => { root.song-action(i, id); }
         empty-link-clicked => { root.browse-songs(); }
         header-clicked => { root.edit-art-clicked(); }
+        rename-clicked => { root.rename-clicked(); }
+        list-action(a) => { root.list-action(a); }
     }
 }

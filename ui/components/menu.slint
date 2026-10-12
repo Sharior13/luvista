@@ -1,0 +1,71 @@
+﻿import { Theme } from "../theme.slint";
+
+//the box a popup menu is drawn in. Put MenuRow / MenuDivider inside it.
+export component MenuPanel inherits Rectangle {
+    background: Theme.menu-bg;
+    border-width: 1px;
+    border-radius: 10px;
+    border-color: Theme.menu-border;
+    drop-shadow-blur: 16px;
+    drop-shadow-color: Theme.shadow;
+    drop-shadow-offset-y: 4px;
+
+    VerticalLayout {
+        padding: 6px;
+        spacing: 0px;
+        alignment: start;
+        @children
+    }
+}
+
+//one clickable line of a menu: icon + label
+export component MenuRow inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <bool> danger: false;
+    in property <bool> disabled: false;
+    callback clicked();
+
+    height: Theme.menu-row-height;
+    border-radius: 6px;
+    background: !root.disabled && touch.has-hover ? Theme.nav-hover : transparent;
+    animate background { duration: Theme.anim-fast; }
+
+    touch := TouchArea {
+        mouse-cursor: root.disabled ? MouseCursor.default : MouseCursor.pointer;
+        clicked => { if (!root.disabled) { root.clicked(); } }
+    }
+
+    Image {
+        source: root.icon;
+        colorize: root.danger ? Theme.danger : Theme.text-primary;
+        width: 20px;
+        height: 20px;
+        x: 10px;
+        y: (parent.height - self.height) / 2;
+        opacity: root.disabled ? 0.35 : 1.0;
+    }
+    Text {
+        x: 10px + 20px + 12px;
+        width: max(0px, parent.width - self.x - 10px);
+        height: parent.height;
+        text: root.label;
+        color: root.danger ? Theme.danger : Theme.text-primary;
+        font-size: 15px;
+        font-weight: 700;
+        vertical-alignment: center;
+        overflow: elide;
+        opacity: root.disabled ? 0.35 : 1.0;
+    }
+}
+
+//thin line between groups of rows. It is 9px high, count that when sizing a popup.
+export component MenuDivider inherits Rectangle {
+    height: 9px;
+    Rectangle {
+        y: 4px;
+        height: 1px;
+        background: Theme.divider;
+        opacity: 0.5;
+    }
+}

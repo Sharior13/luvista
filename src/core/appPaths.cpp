@@ -1,4 +1,4 @@
-#include "appPaths.h"
+﻿#include "appPaths.h"
 #include <cstdlib>
 #include <filesystem>
 #include <system_error>
@@ -89,4 +89,31 @@ std::string AppPaths::recordingsFolder()
 std::string AppPaths::coversFolder()
 {
     return makeFolder(fs::path(root()) / "covers");
+}
+
+
+std::string AppPaths::defaultMusicFolder()
+{
+    std::string home;
+
+#ifdef _WIN32
+    char* base = nullptr;
+    size_t size = 0;
+    _dupenv_s(&base, &size, "USERPROFILE");
+
+    if (base != nullptr) {
+        home = base;
+        free(base);
+    }
+#else
+    const char* base = std::getenv("HOME");
+
+    if (base != nullptr)
+        home = base;
+#endif
+
+    if (home.empty())
+        return "";
+
+    return (fs::path(home) / "Music").string();
 }

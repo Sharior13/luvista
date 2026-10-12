@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <string>
 
 // playlists.dat holds the playlist names.
@@ -8,6 +8,8 @@ public:
     // The list of playlists
     bool create(const std::string& name);        // false if name is empty, bad, or already used
     bool remove(const std::string& name);        // deletes the playlist and its song file
+    bool rename(const std::string& oldName, const std::string& newName);   // false if the new name is bad or taken
+    std::string freeName(const std::string& base) const;   // base, or "base 2", "base 3"... whichever is free
     bool exists(const std::string& name) const;
     int count() const;                           // how many playlists
     std::string getName(int n) const;            // name of playlist number n (first is 1)

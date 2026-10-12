@@ -1,4 +1,4 @@
-#include "PlayQueue.h"
+﻿#include "PlayQueue.h"
 
 PlayQueue::PlayQueue()
 {
@@ -57,4 +57,30 @@ int PlayQueue::get(int n) const
         return 0;
 
     return ids[n - 1];
+}
+
+
+// Takes one song out of the middle of the line. Everybody behind it moves one place up.
+bool PlayQueue::remove(int id)
+{
+    for (int i = 0; i < used; i++) {
+        if (ids[i] == id) {
+            for (int j = i + 1; j < used; j++)
+                ids[j - 1] = ids[j];
+
+            used--;
+            return true;
+        }
+    }
+    return false;
+}
+
+
+bool PlayQueue::contains(int id) const
+{
+    for (int i = 0; i < used; i++) {
+        if (ids[i] == id)
+            return true;
+    }
+    return false;
 }

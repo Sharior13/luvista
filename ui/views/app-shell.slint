@@ -1,7 +1,15 @@
-//main screen after login is successful
+﻿//main screen after login is successful
 //This file only connects the components to AppState, there is no data or logic in here.
 import { Theme } from "../theme.slint";
-import { AppState } from "../state.slint";
+import { AppState, DialogKind } from "../state.slint";
+import { Session } from "../session.slint";
+import { Viewport } from "../viewport.slint";
+import { SongInfo } from "../components/song-row.slint";
+import { NameDialog } from "../components/name-dialog.slint";
+import { ConfirmDialog } from "../components/confirm-dialog.slint";
+import { PickPlaylistDialog } from "../components/pick-playlist-dialog.slint";
+import { RecorderDialog, RecordState } from "../components/recorder-dialog.slint";
+import { EditAccountDialog } from "../components/edit-account-dialog.slint";
 import { PlayerBar } from "../components/player-bar.slint";
 import { SideNav, NavSection } from "../components/side-nav.slint";
 import { TopBar } from "../components/top-bar.slint";
@@ -13,9 +21,94 @@ import { SongsView } from "songs-view.slint";
 import { FavoritesView } from "favorites-view.slint";
 import { RecordingsView } from "recordings-view.slint";
 import { PlaylistView } from "playlist-view.slint";
+import { ArtistView } from "artist-view.slint";
+import { ProfileView } from "profile-view.slint";
+import { SettingsView } from "settings-view.slint";
 
 export component AppShell inherits Rectangle {
     background: Theme.primary;
+
+    //popups open upwards when they would run off the bottom of the window
+    init => { Viewport.window-height = root.height; }
+    changed height => { Viewport.window-height = root.height; }
+
+    //song a "..." menu entry is about, as it is shown in its list right now
+    function song-at(list: string, i: int) -> SongInfo {
+        if (list == "songs") { return AppState.songs[i]; }
+        if (list == "favorites") { return AppState.favorites[i]; }
+        if (list == "recordings") { return AppState.recordings[i]; }
+        if (list == "artist") { return AppState.artist-songs[i]; }
+        return AppState.playlist-songs[i];
+    }
+
+    function close-dialog() {
+        AppState.dialog = DialogKind.none;
+        AppState.dialog-text = "";
+        AppState.dialog-error = "";
+        AppState.create-with = "";
+    }
+
+    //pages that are not in the sidebar
+    function open-page(s: NavSection) {
+        AppState.selected-playlist = -1;
+        AppState.section = s;
+        AppState.section-changed(s);
+    }
+
+    function open-artist(name: string) {
+        AppState.artist-name = name;
+        open-page(NavSection.artist);
+        AppState.artist-clicked(name);
+    }
+
+    function new-playlist-dialog(with: string) {
+        AppState.dialog-text = "";
+        AppState.dialog-error = "";
+        AppState.create-with = with;
+        AppState.dialog = DialogKind.new-playlist;
+    }
+
+    function rename-dialog(playlist: int) {
+        AppState.pending-playlist = playlist;
+        AppState.dialog-text = AppState.playlists[playlist].title;
+        AppState.dialog-error = "";
+        AppState.dialog = DialogKind.rename-playlist;
+    }
+
+    function delete-playlist-dialog(playlist: int) {
+        AppState.pending-playlist = playlist;
+        AppState.dialog = DialogKind.delete-playlist;
+    }
+
+    function open-recorder() {
+        if (AppState.record-state != RecordState.recording) {
+            AppState.record-state = RecordState.idle;
+            AppState.record-seconds = 0;
+            AppState.record-level = 0;
+            AppState.record-error = "";
+        }
+        AppState.dialog = DialogKind.recorder;
+    }
+
+    //an entry of a row's "..." menu. A few open a window, view-artist changes page, the rest go to the backend
+    function song-action(list: string, i: int, id: string) {
+        if (id == "view-artist") {
+            open-artist(song-at(list, i).artist);
+        } else if (id == "add-playlist") {
+            AppState.pending-list = list;
+            AppState.pending-row = i;
+            AppState.pending-title = song-at(list, i).title;
+            AppState.song-playlists-requested(list, i);
+            AppState.dialog = DialogKind.pick-playlist;
+        } else if (id == "delete") {
+            AppState.pending-list = list;
+            AppState.pending-row = i;
+            AppState.pending-title = song-at(list, i).title;
+            AppState.dialog = DialogKind.delete-song;
+        } else {
+            AppState.song-menu-action(list, i, id);
+        }
+    }
 
     //sidebar and content sit above the player bar
     main := Rectangle {
@@ -43,7 +136,7 @@ export component AppShell inherits Rectangle {
 
             section-changed(s) => { AppState.section-changed(s); }
             playlist-clicked(i) => { AppState.playlist-clicked(i); }
-            add-playlist => { AppState.add-playlist(); }
+            add-playlist => { root.new-playlist-dialog(""); }
         }
 
         //pages go inside this panel
@@ -71,6 +164,7 @@ export component AppShell inherits Rectangle {
                 total-seconds: AppState.songs-seconds;
 
                 song-clicked(i) => { AppState.song-clicked("songs", i); }
+                song-action(i, id) => { root.song-action("songs", i, id); }
                 play-clicked => { AppState.play-list("songs"); }
                 shuffle-clicked => { AppState.shuffle-list("songs"); }
                 search-edited(t) => { AppState.list-search-changed("songs", t); }
@@ -84,6 +178,7 @@ export component AppShell inherits Rectangle {
                 total-seconds: AppState.favorites-seconds;
 
                 song-clicked(i) => { AppState.song-clicked("favorites", i); }
+                song-action(i, id) => { root.song-action("favorites", i, id); }
                 play-clicked => { AppState.play-list("favorites"); }
                 shuffle-clicked => { AppState.shuffle-list("favorites"); }
                 search-edited(t) => { AppState.list-search-changed("favorites", t); }
@@ -95,7 +190,8 @@ export component AppShell inherits Rectangle {
                 recordings: AppState.recordings;
 
                 song-clicked(i) => { AppState.song-clicked("recordings", i); }
-                start-recording => { AppState.start-recording(); }
+                song-action(i, id) => { root.song-action("recordings", i, id); }
+                start-recording => { root.open-recorder(); }
                 search-edited(t) => { AppState.list-search-changed("recordings", t); }
                 sort-changed(i) => { AppState.list-sort-changed("recordings", i); }
             }
@@ -108,6 +204,13 @@ export component AppShell inherits Rectangle {
                 total-seconds: AppState.playlist-seconds;
 
                 song-clicked(i) => { AppState.song-clicked("playlist", i); }
+                song-action(i, id) => { root.song-action("playlist", i, id); }
+                rename-clicked => { root.rename-dialog(AppState.selected-playlist); }
+                list-action(a) => {
+                    if (a == "rename") { root.rename-dialog(AppState.selected-playlist); }
+                    else if (a == "cover") { AppState.edit-playlist-art(AppState.selected-playlist); }
+                    else if (a == "delete") { root.delete-playlist-dialog(AppState.selected-playlist); }
+                }
                 play-clicked => { AppState.play-list("playlist"); }
                 shuffle-clicked => { AppState.shuffle-list("playlist"); }
                 search-edited(t) => { AppState.list-search-changed("playlist", t); }
@@ -119,6 +222,53 @@ export component AppShell inherits Rectangle {
                     AppState.section-changed(NavSection.songs);
                 }
             }
+
+            //artist page, from "View artist" or a Top Artist tile
+            if AppState.section == NavSection.artist && AppState.selected-playlist < 0 : ArtistView {
+                name: AppState.artist-name;
+                art: AppState.artist-art;
+                songs: AppState.artist-songs;
+                total-seconds: AppState.artist-seconds;
+
+                song-clicked(i) => { AppState.song-clicked("artist", i); }
+                song-action(i, id) => { root.song-action("artist", i, id); }
+                play-clicked => { AppState.play-list("artist"); }
+                shuffle-clicked => { AppState.shuffle-list("artist"); }
+                sort-changed(i) => { AppState.list-sort-changed("artist", i); }
+            }
+
+            //profile page, from the avatar popup
+            if AppState.section == NavSection.profile && AppState.selected-playlist < 0 : ProfileView {
+                name: AppState.profile-name;
+                picture: AppState.profile-picture;
+                playlist-count: AppState.playlists.length;
+                song-count: AppState.songs-count;
+                top-artists: AppState.top-artists;
+
+                settings-clicked => { root.open-page(NavSection.settings); }
+                edit-clicked => { AppState.dialog = DialogKind.edit-account; }
+                picture-clicked => { AppState.change-profile-picture(); }
+                logout-clicked => { Session.logout(); }
+                artist-clicked(i) => { root.open-artist(AppState.top-artists[i].name); }
+            }
+
+            //settings page
+            if AppState.section == NavSection.settings && AppState.selected-playlist < 0 : SettingsView {
+                account-name: AppState.profile-name;
+                storage-text: AppState.storage-text;
+                languages: AppState.languages;
+                themes: AppState.themes;
+                language-index <=> AppState.language-index;
+                theme-index <=> AppState.theme-index;
+                autoplay <=> AppState.autoplay;
+
+                account-edit => { AppState.dialog = DialogKind.edit-account; }
+                language-changed(i) => { AppState.language-changed(i); }
+                theme-changed(i) => { AppState.theme-changed(i); }
+                autoplay-toggled(on) => { AppState.autoplay-toggled(on); }
+                add-folder => { AppState.add-folder(); }
+                logout-clicked => { Session.logout(); }
+            }
         }
 
         top-bar := TopBar {
@@ -128,6 +278,7 @@ export component AppShell inherits Rectangle {
 
             search-text <=> AppState.search-text;
             profile-initial: AppState.profile-initial;
+            profile-name: AppState.profile-name;
             profile-picture: AppState.profile-picture;
             home-active: AppState.section == NavSection.home && AppState.selected-playlist < 0;
 
@@ -139,6 +290,9 @@ export component AppShell inherits Rectangle {
             search-edited(t) => { AppState.search-changed(t); }
             search-submitted(t) => { AppState.search-submitted(t); }
             profile-clicked => { AppState.profile-clicked(); }
+            open-profile => { root.open-page(NavSection.profile); }
+            open-settings => { root.open-page(NavSection.settings); }
+            logout => { Session.logout(); }
         }
 
         //lyrics page: covers the page content, from the sidebar to the queue panel, or to the right edge of the window while the queue is closed. touches the top bar and the player bar
@@ -194,8 +348,8 @@ export component AppShell inherits Rectangle {
         duration: AppState.duration;
 
         playing <=> AppState.playing;
-        shuffle <=> AppState.shuffle;
-        repeat <=> AppState.repeat;
+        shuffle: AppState.shuffle;
+        repeat-mode: AppState.repeat-mode;
         volume <=> AppState.volume;
         lyrics-open <=> AppState.lyrics-open;
         queue-open <=> AppState.queue-open;
@@ -206,8 +360,8 @@ export component AppShell inherits Rectangle {
         next => { AppState.next(); }
         seek(s) => { AppState.seek(s); }
         volume-changed(v) => { AppState.volume-changed(v); }
-        shuffle-toggled(on) => { AppState.shuffle-toggled(on); }
-        repeat-toggled(on) => { AppState.repeat-toggled(on); }
+        shuffle-clicked => { AppState.shuffle-clicked(); }
+        repeat-clicked => { AppState.repeat-clicked(); }
         lyrics-clicked => { AppState.lyrics-toggled(AppState.lyrics-open); }
         queue-clicked => { AppState.queue-toggled(AppState.queue-open); }
         add-clicked => { AppState.add-current-track(); }
@@ -217,9 +371,135 @@ export component AppShell inherits Rectangle {
         favorited <=> AppState.current-favorite;
         favorite-toggled(on) => { AppState.favorite-toggled(on); }
         playlist-toggled(i) => { AppState.playlist-toggled(i); }
-        new-playlist => { AppState.new-playlist-from-track(); }
+        new-playlist => { root.new-playlist-dialog("current"); }
         playlist-search(t) => { AppState.playlist-picker-search(t); }
     }
 
     MockBackend {}
+
+    //windows in front of everything. One at a time, see DialogKind
+    //name for a new playlist
+    if AppState.dialog == DialogKind.new-playlist : NameDialog {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        title: "Name your playlist";
+        confirm-label: "Create";
+        text <=> AppState.dialog-text;
+        error: AppState.dialog-error;
+
+        closed => { root.close-dialog(); }
+        confirmed(name) => {
+            if (AppState.create-playlist(name, AppState.create-with)) { root.close-dialog(); }
+        }
+    }
+
+    //new name for the open playlist
+    if AppState.dialog == DialogKind.rename-playlist : NameDialog {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        title: "Rename playlist";
+        confirm-label: "Save";
+        text <=> AppState.dialog-text;
+        error: AppState.dialog-error;
+
+        closed => { root.close-dialog(); }
+        confirmed(name) => {
+            if (AppState.rename-playlist(AppState.pending-playlist, name)) { root.close-dialog(); }
+        }
+    }
+
+    if AppState.dialog == DialogKind.delete-playlist : ConfirmDialog {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        title: "Delete playlist?";
+        message: "\"\{AppState.playlists[AppState.pending-playlist].title}\" will be deleted. The songs in it stay in your library.";
+        confirm-label: "Delete";
+
+        closed => { root.close-dialog(); }
+        confirmed => {
+            AppState.delete-playlist(AppState.pending-playlist);
+            root.close-dialog();
+            root.open-page(NavSection.home);
+        }
+    }
+
+    //"Add to playlist" for a song from a "..." menu
+    if AppState.dialog == DialogKind.pick-playlist : PickPlaylistDialog {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        song-title: AppState.pending-title;
+        choices: AppState.song-playlist-choices;
+
+        closed => { root.close-dialog(); }
+        toggled(i) => { AppState.song-playlist-toggled(i); }
+        search(t) => { AppState.song-playlist-search(t); }
+        new-playlist => { root.new-playlist-dialog("song"); }
+    }
+
+    if AppState.dialog == DialogKind.delete-song : ConfirmDialog {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        property <bool> recording: AppState.pending-list == "recordings";
+        title: self.recording ? "Delete recording?" : "Remove from library?";
+        message: self.recording
+            ? "\"\{AppState.pending-title}\" will be deleted from your computer. This cannot be undone."
+            : "\"\{AppState.pending-title}\" will be removed from your library. The file stays on your computer.";
+        confirm-label: self.recording ? "Delete" : "Remove";
+
+        closed => { root.close-dialog(); }
+        confirmed => {
+            AppState.delete-song(AppState.pending-list, AppState.pending-row);
+            root.close-dialog();
+        }
+    }
+
+    if AppState.dialog == DialogKind.recorder : RecorderDialog {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        state: AppState.record-state;
+        seconds: AppState.record-seconds;
+        level: AppState.record-level;
+        error: AppState.record-error;
+        saved-name: AppState.record-saved-name;
+
+        closed => { root.close-dialog(); }
+        start(name) => { AppState.begin-recording(name); }
+        stop => { AppState.stop-recording(); }
+        discard => { AppState.cancel-recording(); }
+        again => {
+            AppState.record-state = RecordState.idle;
+            AppState.record-seconds = 0;
+            AppState.record-error = "";
+        }
+    }
+
+    if AppState.dialog == DialogKind.edit-account : EditAccountDialog {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        picture: AppState.profile-picture;
+        initial: AppState.profile-initial;
+        error: AppState.dialog-error;
+        username: AppState.profile-name;
+        email: AppState.account-email;
+
+        closed => { root.close-dialog(); }
+        picture-clicked => { AppState.change-profile-picture(); }
+        saved(user, email, current, new-password) => {
+            if (AppState.account-saved(user, email, current, new-password)) { root.close-dialog(); }
+        }
+    }
 }

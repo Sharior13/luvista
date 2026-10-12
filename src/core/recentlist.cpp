@@ -1,4 +1,4 @@
-#include "recentlist.h"
+﻿#include "recentlist.h"
 #include "appPaths.h"
 #include <fstream>
 #include <string>

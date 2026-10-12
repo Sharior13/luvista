@@ -1,0 +1,52 @@
+﻿import { Theme } from "../theme.slint";
+
+export struct ArtistInfo {
+    name: string,
+    art: image,            //empty = gradient placeholder
+}
+
+//square artist picture with the name underneath (Top Artist row on the profile page)
+export component ArtistTile inherits Rectangle {
+    in property <ArtistInfo> artist;
+    callback clicked();
+
+    width: 118px;
+    height: 150px;
+    border-radius: 12px;
+    background: touch.has-hover ? Theme.nav-hover : transparent;
+    animate background { duration: Theme.anim-fast; }
+
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.clicked(); }
+    }
+
+    Rectangle {
+        x: 8px;
+        y: 8px;
+        width: parent.width - 16px;
+        height: self.width;
+        border-radius: 10px;
+        clip: true;
+        background: Theme.art-gradient;
+
+        Image {
+            source: root.artist.art;
+            width: 100%;
+            height: 100%;
+            image-fit: cover;
+        }
+    }
+
+    Text {
+        x: 8px;
+        y: 8px + (parent.width - 16px) + 6px;
+        width: parent.width - 16px;
+        height: 20px;
+        text: root.artist.name;
+        color: Theme.text-primary;
+        font-size: 13px;
+        font-weight: 800;
+        overflow: elide;
+    }
+}

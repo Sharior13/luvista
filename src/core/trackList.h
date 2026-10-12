@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <string>
 #include <vector>
@@ -24,6 +24,7 @@ public:
 
     bool scan(const std::string& folderPath);
     bool removeSong(int n);
+    std::string getFolder() const;      // the folder scanned last
 
     int         getCount() const;
     std::string getTrack(int n) const;

@@ -1,0 +1,255 @@
+﻿import { Theme } from "../theme.slint";
+import { PageScroll } from "../components/page-scroll.slint";
+import { ArtistInfo, ArtistTile } from "../components/artist-tile.slint";
+import { MenuPanel, MenuRow, MenuDivider } from "../components/menu.slint";
+import { Format } from "../format.slint";
+
+//profile page: name and picture, a settings button, a "..." menu and the Top Artist row.
+//clicking an artist opens that artist's page.
+export component ProfileView inherits Rectangle {
+    in property <string> name;
+    in property <image> picture;              //empty = gradient with a heart
+    in property <int> playlist-count;
+    in property <int> song-count;
+    in property <[ArtistInfo]> top-artists;
+    callback settings-clicked();
+    callback edit-clicked();                  //"Edit profile" in the "..." menu
+    callback picture-clicked();               //click on the picture, or "Change picture"
+    callback logout-clicked();
+    callback artist-clicked(int);             //index into top-artists
+
+    property <bool> compact: root.width < Theme.bp-date;
+    property <length> pad: root.compact ? 20px : 36px;
+    property <length> art-size: root.compact ? 88px : 112px;
+    property <bool> has-picture: root.picture.width > 0 && root.picture.height > 0;
+
+    PageScroll {
+        VerticalLayout {
+            spacing: 0px;
+
+            //page title
+            Rectangle {
+                height: root.compact ? 76px : 96px;
+
+                Text {
+                    x: root.pad;
+                    width: parent.width - 2 * root.pad;
+                    height: parent.height;
+                    text: "Profile";
+                    color: Theme.text-primary;
+                    font-size: root.compact ? 34px : 44px;
+                    font-weight: 800;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+            }
+
+            //band: picture, name and the playlist / song count
+            Rectangle {
+                height: root.art-size + 24px;
+                background: Theme.header-band;
+
+                pic := Rectangle {
+                    x: root.pad;
+                    y: (parent.height - self.height) / 2;
+                    width: root.art-size;
+                    height: root.art-size;
+                    border-radius: 8px;
+                    clip: true;
+                    background: Theme.art-gradient;
+
+                    if !root.has-picture : Image {
+                        source: @image-url("../icons/heart.svg");
+                        colorize: Theme.text-primary;
+                        width: parent.width * 0.55;
+                        height: self.width;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                    }
+                    if root.has-picture : Image {
+                        source: root.picture;
+                        width: 100%;
+                        height: 100%;
+                        image-fit: cover;
+                    }
+
+                    //dark wash with a camera while hovered: click to change the picture
+                    Rectangle {
+                        background: cover-touch.has-hover ? #000000a6 : transparent;
+                        animate background { duration: Theme.anim-fast; }
+                    }
+                    if cover-touch.has-hover : Image {
+                        source: @image-url("../icons/camera.svg");
+                        colorize: Theme.text-primary;
+                        width: parent.width * 0.36;
+                        height: self.width;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                    }
+                    cover-touch := TouchArea {
+                        mouse-cursor: MouseCursor.pointer;
+                        clicked => { root.picture-clicked(); }
+                    }
+                }
+
+                VerticalLayout {
+                    x: pic.x + pic.width + 20px;
+                    width: max(0px, parent.width - self.x - root.pad);
+                    height: parent.height;
+                    alignment: center;
+                    spacing: 4px;
+
+                    Text {
+                        text: root.name;
+                        color: Theme.text-primary;
+                        font-size: root.compact ? 30px : 44px;
+                        font-weight: 800;
+                        overflow: elide;
+                    }
+                    Text {
+                        text: Format.profile(root.playlist-count, root.song-count);
+                        color: Theme.text-primary;
+                        font-size: 13px;
+                        font-weight: 700;
+                        overflow: elide;
+                    }
+                }
+            }
+
+            //toolbar: settings gear and "..." menu
+            Rectangle {
+                height: 64px;
+
+                gear := Rectangle {
+                    x: root.pad;
+                    y: (parent.height - self.height) / 2;
+                    width: 44px;
+                    height: 44px;
+                    border-radius: self.width / 2;
+                    background: gear-touch.has-hover ? Theme.nav-hover : transparent;
+
+                    gear-touch := TouchArea {
+                        mouse-cursor: MouseCursor.pointer;
+                        clicked => { root.settings-clicked(); }
+                    }
+                    Image {
+                        source: @image-url("../icons/settings.svg");
+                        colorize: gear-touch.has-hover ? Theme.text-primary : Theme.control-muted;
+                        width: 26px;
+                        height: 26px;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                    }
+                }
+
+                dots := Rectangle {
+                    x: gear.x + gear.width + 8px;
+                    y: (parent.height - self.height) / 2;
+                    width: 44px;
+                    height: 44px;
+                    border-radius: self.width / 2;
+                    background: dots-touch.has-hover ? Theme.nav-hover : transparent;
+
+                    dots-touch := TouchArea {
+                        mouse-cursor: MouseCursor.pointer;
+                        clicked => { menu.show(); }
+                    }
+                    Image {
+                        source: @image-url("../icons/more.svg");
+                        colorize: dots-touch.has-hover ? Theme.text-primary : Theme.control-muted;
+                        width: 28px;
+                        height: 28px;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                    }
+
+                    menu := PopupWindow {
+                        x: 0px;
+                        y: parent.height + 4px;
+                        width: 230px;
+                        height: 4 * Theme.menu-row-height + 9px + 12px;
+                        close-policy: PopupClosePolicy.close-on-click-outside;
+
+                        MenuPanel {
+                            MenuRow {
+                                icon: @image-url("../icons/edit.svg");
+                                label: "Edit profile";
+                                clicked => { root.edit-clicked(); menu.close(); }
+                            }
+                            MenuRow {
+                                icon: @image-url("../icons/camera.svg");
+                                label: "Change picture";
+                                clicked => { root.picture-clicked(); menu.close(); }
+                            }
+                            MenuRow {
+                                icon: @image-url("../icons/settings.svg");
+                                label: "Settings";
+                                clicked => { root.settings-clicked(); menu.close(); }
+                            }
+                            MenuDivider { }
+                            MenuRow {
+                                icon: @image-url("../icons/logout.svg");
+                                label: "Log out";
+                                clicked => { root.logout-clicked(); menu.close(); }
+                            }
+                        }
+                    }
+                }
+            }
+
+            //top artists
+            Rectangle {
+                height: 40px;
+                Text {
+                    x: root.pad;
+                    width: parent.width - 2 * root.pad;
+                    height: parent.height;
+                    text: "Top Artist";
+                    color: Theme.text-primary;
+                    font-size: 18px;
+                    font-weight: 800;
+                    vertical-alignment: center;
+                }
+            }
+
+            if root.top-artists.length == 0 : Rectangle {
+                height: 64px;
+                Text {
+                    x: root.pad;
+                    width: parent.width - 2 * root.pad;
+                    height: parent.height;
+                    text: "No top artists yet. Play some music and they will show up here";
+                    color: Theme.text-primary;
+                    font-size: 15px;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+            }
+
+            //row of tiles, scrolls sideways when there are more than fit
+            if root.top-artists.length > 0 : Rectangle {
+                height: 164px;
+
+                Flickable {
+                    x: root.pad - 8px;
+                    width: parent.width - root.pad + 8px;
+                    height: parent.height;
+                    content-width: tiles.preferred-width + root.pad;
+
+                    tiles := HorizontalLayout {
+                        spacing: 12px;
+                        alignment: start;
+
+                        for a[i] in root.top-artists : ArtistTile {
+                            artist: a;
+                            clicked => { root.artist-clicked(i); }
+                        }
+                    }
+                }
+            }
+
+            Rectangle { height: 40px; }
+        }
+    }
+}

@@ -1,0 +1,137 @@
+﻿import { Theme } from "../theme.slint";
+
+export enum ButtonKind { primary, secondary, danger }
+
+//pill button for dialogs and forms
+export component DialogButton inherits Rectangle {
+    in property <string> label;
+    in property <ButtonKind> kind: ButtonKind.primary;
+    in property <bool> enabled: true;
+    in property <image> icon;
+    callback clicked();
+
+    height: 40px;
+    min-width: 96px;
+    border-radius: 12px;
+    background: root.kind == ButtonKind.primary ? Theme.action-gradient
+        : (root.kind == ButtonKind.danger ? Theme.danger : Theme.nav-hover);
+    opacity: root.enabled ? 1.0 : 0.45;
+
+    //light wash on hover
+    Rectangle {
+        border-radius: parent.border-radius;
+        background: root.enabled && touch.has-hover ? #ffffff30 : transparent;
+        animate background { duration: Theme.anim-fast; }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+        clicked => { if (root.enabled) { root.clicked(); } }
+    }
+
+    HorizontalLayout {
+        padding-left: 18px;
+        padding-right: 18px;
+        spacing: 8px;
+        alignment: center;
+
+        if root.icon.width > 0 : Image {
+            source: root.icon;
+            colorize: Theme.text-primary;
+            width: 18px;
+            height: 18px;
+            y: (parent.height - self.height) / 2;
+        }
+        Text {
+            text: root.label;
+            color: Theme.text-primary;
+            font-size: 15px;
+            font-weight: 800;
+            vertical-alignment: center;
+        }
+    }
+}
+
+//dimmed backdrop with a card in the middle. Everything inside goes under the title.
+//a click on the backdrop or Esc asks the page to close it.
+export component DialogFrame inherits Rectangle {
+    in property <string> title;
+    in property <length> card-width: 420px;
+    in property <bool> closable: true;
+    callback closed();
+
+    background: Theme.scrim;
+
+    //backdrop: swallows every click so nothing underneath reacts
+    TouchArea {
+        mouse-cursor: MouseCursor.default;
+        clicked => { if (root.closable) { root.closed(); } }
+    }
+
+    FocusScope {
+        key-pressed(e) => {
+            if (e.text == Key.Escape && root.closable) {
+                root.closed();
+                return accept;
+            }
+            return reject;
+        }
+
+        card := Rectangle {
+            width: min(root.card-width, root.width - 32px);
+            height: min(inner.preferred-height, root.height - 32px);
+            x: (root.width - self.width) / 2;
+            y: (root.height - self.height) / 2;
+            border-radius: 16px;
+            background: Theme.dialog-bg;
+            border-width: 1px;
+            border-color: Theme.menu-border;
+            drop-shadow-blur: 28px;
+            drop-shadow-color: Theme.shadow;
+            drop-shadow-offset-y: 8px;
+
+            //keeps clicks on the card from reaching the backdrop
+            TouchArea { }
+
+            inner := VerticalLayout {
+                padding: 24px;
+                spacing: 16px;
+                alignment: start;
+
+                Text {
+                    text: root.title;
+                    color: Theme.text-primary;
+                    font-size: 22px;
+                    font-weight: 800;
+                    overflow: elide;
+                    height: 30px;
+                    width: parent.width - 48px - 32px;
+                }
+                @children
+            }
+
+            //close button
+            if root.closable : Rectangle {
+                x: parent.width - self.width - 14px;
+                y: 14px;
+                width: 32px;
+                height: 32px;
+                border-radius: self.width / 2;
+                background: x-touch.has-hover ? Theme.nav-hover : transparent;
+
+                x-touch := TouchArea {
+                    mouse-cursor: MouseCursor.pointer;
+                    clicked => { root.closed(); }
+                }
+                Image {
+                    source: @image-url("../icons/close.svg");
+                    colorize: Theme.text-primary;
+                    width: 16px;
+                    height: 16px;
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                }
+            }
+        }
+    }
+}

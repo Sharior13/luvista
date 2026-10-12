@@ -1,0 +1,31 @@
+﻿import { Theme } from "../theme.slint";
+
+//on / off switch: red track with the knob on the left = off, pink with the knob on the right = on
+export component ToggleSwitch inherits Rectangle {
+    in-out property <bool> checked;
+    callback toggled(bool);
+
+    width: 52px;
+    height: 26px;
+    border-radius: self.height / 2;
+    background: root.checked ? Theme.toggle-on : Theme.toggle-off;
+    animate background { duration: Theme.anim-fast; }
+
+    TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => {
+            root.checked = !root.checked;
+            root.toggled(root.checked);
+        }
+    }
+
+    Rectangle {
+        x: root.checked ? parent.width - self.width - 3px : 3px;
+        y: 3px;
+        width: parent.height - 6px;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: #ffffff;
+        animate x { duration: Theme.anim-fast; easing: ease-in-out; }
+    }
+}

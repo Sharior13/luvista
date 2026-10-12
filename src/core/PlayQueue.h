@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 // The play queue: songs waiting to play next, one after the other.
 // It works like a line of people at a shop: the first one in is the first one out.
@@ -19,6 +19,8 @@ public:
     void clear();            // everybody leaves: the line becomes empty
     int  count() const;      // how many songs are still waiting
     int  get(int n) const;   // the id on place n (1 = plays next, 2 = after that, ...)
+    bool remove(int id);     // takes the first place that holds this id out of the line (false = it was not waiting)
+    bool contains(int id) const;   // is this song waiting in the line?
 
     static constexpr int capacity = 500;   // the line never holds more than 500 songs
 

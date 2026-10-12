@@ -1,0 +1,49 @@
+﻿import { Theme } from "../theme.slint";
+import { DialogFrame, DialogButton, ButtonKind } from "dialog-frame.slint";
+import { TextBox } from "text-box.slint";
+
+//asks for a name: creating a playlist and renaming one both use it
+export component NameDialog inherits DialogFrame {
+    in property <string> confirm-label: "Create";
+    in property <string> placeholder: "Playlist name";
+    in property <string> error;                    //shown in red under the box, e.g. "That name is already used"
+    in-out property <string> text;
+    callback confirmed(string);
+
+    title: "Name your playlist";
+    card-width: 400px;
+
+    TextBox {
+        label: "Name";
+        placeholder: root.placeholder;
+        text <=> root.text;
+        invalid: root.error != "";
+        autofocus: true;
+        accepted(t) => { if (t != "") { root.confirmed(t); } }
+    }
+
+    if root.error != "" : Text {
+        text: root.error;
+        color: Theme.danger;
+        font-size: 13px;
+        font-weight: 700;
+        wrap: word-wrap;
+    }
+
+    HorizontalLayout {
+        spacing: 12px;
+        alignment: end;
+        padding-top: 4px;
+
+        DialogButton {
+            label: "Cancel";
+            kind: ButtonKind.secondary;
+            clicked => { root.closed(); }
+        }
+        DialogButton {
+            label: root.confirm-label;
+            enabled: root.text != "";
+            clicked => { root.confirmed(root.text); }
+        }
+    }
+}

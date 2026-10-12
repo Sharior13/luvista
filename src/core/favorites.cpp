@@ -1,4 +1,4 @@
-#include "favorites.h"
+﻿#include "favorites.h"
 #include "appPaths.h"
 #include <fstream>
 #include <cstdlib>

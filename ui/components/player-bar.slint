@@ -1,4 +1,4 @@
-import { Theme } from "../theme.slint";
+﻿import { Theme } from "../theme.slint";
 import { BarSlider } from "bar-slider.slint";
 import { AddToPlaylistMenu, PlaylistChoice } from "add-to-playlist.slint";
 
@@ -7,6 +7,7 @@ component IconButton inherits Rectangle {
     in property <image> icon;
     in property <length> glyph: 22px;
     in property <color> tint: Theme.icon-dim;
+    in property <string> badge;             //tiny text on the corner, e.g. the "1" of repeat one
     callback clicked();
 
     width: root.glyph + 14px;
@@ -31,6 +32,15 @@ component IconButton inherits Rectangle {
             y: (parent.height - self.height) / 2;
             opacity: touch.has-hover ? 1.0 : 0.85;
         }
+
+        if root.badge != "" : Text {
+            x: parent.width / 2 + 3px;
+            y: parent.height / 2 - 14px;
+            text: root.badge;
+            color: root.tint;
+            font-size: 11px;
+            font-weight: 800;
+        }
     }
 }
 
@@ -50,8 +60,8 @@ export component PlayerBar inherits Rectangle {
 
     //two-way so they work standalone and can be bound with <=> later
     in-out property <bool> playing: false;
-    in-out property <bool> shuffle: false;
-    in-out property <bool> repeat: false;
+    in property <bool> shuffle: false;         //the backend decides, the button only asks
+    in property <int> repeat-mode: 0;          //0 = off, 1 = repeat all, 2 = repeat one
     in-out property <float> volume: 1.0;   //0..1
 
     //callbacks used in cpp backend
@@ -70,8 +80,8 @@ export component PlayerBar inherits Rectangle {
     callback playlist-toggled(int);
     callback new-playlist();
     callback playlist-search(string);
-    callback shuffle-toggled(bool);
-    callback repeat-toggled(bool);
+    callback shuffle-clicked();
+    callback repeat-clicked();
 
     //panels next to the volume bar, tinted pink while open
     in-out property <bool> lyrics-open: false;
@@ -237,10 +247,7 @@ export component PlayerBar inherits Rectangle {
                             IconButton {
                                 icon: @image-url("../icons/shuffle.svg");
                                 tint: root.shuffle ? Theme.pink : Theme.icon-dim;
-                                clicked => {
-                                    root.shuffle = !root.shuffle;
-                                    root.shuffle-toggled(root.shuffle);
-                                }
+                                clicked => { root.shuffle-clicked(); }
                             }
                             //previous
                             IconButton {
@@ -286,11 +293,9 @@ export component PlayerBar inherits Rectangle {
                             //repeat
                             IconButton {
                                 icon: @image-url("../icons/repeat.svg");
-                                tint: root.repeat ? Theme.pink : Theme.icon-dim;
-                                clicked => {
-                                    root.repeat = !root.repeat;
-                                    root.repeat-toggled(root.repeat);
-                                }
+                                tint: root.repeat-mode > 0 ? Theme.pink : Theme.icon-dim;
+                                badge: root.repeat-mode == 2 ? "1" : "";
+                                clicked => { root.repeat-clicked(); }
                             }
                         }
 

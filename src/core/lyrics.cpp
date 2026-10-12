@@ -1,4 +1,4 @@
-#include "lyrics.h"
+﻿#include "lyrics.h"
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>

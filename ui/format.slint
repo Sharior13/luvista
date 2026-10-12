@@ -1,4 +1,4 @@
-//small text helpers for the page headers ("3 songs, 10.4 mins")
+﻿//small text helpers for the page headers ("3 songs, 10.4 mins")
 export global Format {
     //10.4, or just 3 when there is no decimal part
     pure public function minutes(seconds: float) -> string {
@@ -20,5 +20,20 @@ export global Format {
             return "1 Recording";
         }
         return "\{count} Recordings";
+    }
+
+    //"3 Playlists, 12 Songs" under the name on the profile page
+    pure public function profile(playlists: int, songs: int) -> string {
+        return (playlists == 1 ? "1 Playlist" : "\{playlists} Playlists") + ", " + (songs == 1 ? "1 Song" : "\{songs} Songs");
+    }
+
+    //07 instead of 7
+    pure function two(n: int) -> string {
+        return n < 10 ? "0\{n}" : "\{n}";
+    }
+
+    //1:05 style clock for the recorder, 00:07 / 12:30
+    pure public function clock(seconds: float) -> string {
+        return two(Math.floor(seconds / 60)) + ":" + two(Math.mod(Math.floor(seconds), 60));
     }
 }

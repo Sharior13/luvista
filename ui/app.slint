@@ -1,10 +1,10 @@
-import { Session } from "session.slint";
+﻿import { Session } from "session.slint";
 import { LoginView } from "views/login-view.slint";
 import { AppShell } from "views/app-shell.slint";
 import { AppState } from "state.slint";
 
 //everything the C++ side needs: ui->global<AppState>() and the types used by its lists
-export { AppState, TrackInfo, PlaylistInfo, NavSection, SongInfo, PlaylistChoice, LyricLine } from "state.slint";
+export { AppState, DialogKind, TrackInfo, PlaylistInfo, NavSection, SongInfo, PlaylistChoice, LyricLine, ArtistInfo, RecordState } from "state.slint";
 export { MockData } from "mock-data.slint";
 export { Session } from "session.slint";
 export { ProfileInfo } from "components/login-card.slint";

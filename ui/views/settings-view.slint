@@ -1,0 +1,191 @@
+﻿import { Theme } from "../theme.slint";
+import { PageScroll } from "../components/page-scroll.slint";
+import { Dropdown } from "../components/dropdown.slint";
+import { ToggleSwitch } from "../components/toggle-switch.slint";
+import { PillButton } from "../components/pill-button.slint";
+import { DialogButton, ButtonKind } from "../components/dialog-frame.slint";
+
+//one line of the settings card: name on the left, whatever controls it on the right
+component SettingsRow inherits Rectangle {
+    in property <string> label;
+    in property <string> hint;            //small grey text under the label
+    in property <bool> last: false;       //no divider under the last row
+
+    height: 60px;
+
+    @children
+
+    Text {
+        x: 24px;
+        y: root.hint == "" ? 0px : 10px;
+        width: max(0px, parent.width / 2 - 24px);
+        height: root.hint == "" ? parent.height : 24px;
+        text: root.label;
+        color: Theme.control-muted;
+        font-size: 16px;
+        font-weight: 700;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    if root.hint != "" : Text {
+        x: 24px;
+        y: 32px;
+        width: max(0px, parent.width / 2 - 24px);
+        height: 18px;
+        text: root.hint;
+        color: Theme.text-muted;
+        font-size: 12px;
+        font-weight: 700;
+        overflow: elide;
+    }
+    if !root.last : Rectangle {
+        x: 24px;
+        y: parent.height - 1px;
+        width: parent.width - 48px;
+        height: 1px;
+        background: #ffffff14;
+    }
+}
+
+//settings page: account, language, autoplay, storage and theme. The backend owns the values.
+export component SettingsView inherits Rectangle {
+    in property <string> account-name;
+    in property <string> storage-text;               //e.g. "3 folders, 128 songs"
+    in property <[string]> languages: ["English"];
+    in property <[string]> themes: ["Default"];
+    in-out property <int> language-index: 0;
+    in-out property <int> theme-index: 0;
+    in-out property <bool> autoplay: false;
+    callback account-edit();
+    callback language-changed(int);
+    callback autoplay-toggled(bool);
+    callback add-folder();
+    callback theme-changed(int);
+    callback logout-clicked();
+
+    property <bool> compact: root.width < Theme.bp-date;
+    property <length> pad: root.compact ? 20px : 36px;
+
+    PageScroll {
+        VerticalLayout {
+            spacing: 0px;
+
+            Rectangle {
+                height: root.compact ? 76px : 96px;
+
+                Text {
+                    x: root.pad;
+                    width: parent.width - 2 * root.pad;
+                    height: parent.height;
+                    text: "Settings";
+                    color: Theme.text-primary;
+                    font-size: root.compact ? 34px : 44px;
+                    font-weight: 800;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+            }
+
+            Rectangle {
+                height: 5 * 60px + 24px + 24px;
+
+                card := Rectangle {
+                    x: root.pad;
+                    y: 0px;
+                    width: parent.width - 2 * root.pad;
+                    height: 5 * 60px + 24px;
+                    border-radius: 16px;
+                    background: Theme.settings-card;
+
+                    VerticalLayout {
+                        padding-top: 12px;
+                        padding-bottom: 12px;
+
+                        //account
+                        SettingsRow {
+                            label: "Account";
+                            hint: root.account-name;
+
+                            PillButton {
+                                x: parent.width - self.width - 24px;
+                                y: (parent.height - self.height) / 2;
+                                label: "Edit";
+                                icon: @image-url("../icons/edit.svg");
+                                clicked => { root.account-edit(); }
+                            }
+                        }
+
+                        //language
+                        SettingsRow {
+                            label: "Language";
+
+                            Dropdown {
+                                x: parent.width - self.width - 24px;
+                                y: (parent.height - self.height) / 2;
+                                options: root.languages;
+                                selected <=> root.language-index;
+                                chosen(i) => { root.language-changed(i); }
+                            }
+                        }
+
+                        //autoplay: keep playing similar songs when the queue ends
+                        SettingsRow {
+                            label: "Autoplay";
+                            hint: "Keep playing when the queue runs out";
+
+                            ToggleSwitch {
+                                x: parent.width - self.width - 24px;
+                                y: (parent.height - self.height) / 2;
+                                checked <=> root.autoplay;
+                                toggled(on) => { root.autoplay-toggled(on); }
+                            }
+                        }
+
+                        //storage: where the songs are read from
+                        SettingsRow {
+                            label: "Storage";
+                            hint: root.storage-text;
+
+                            PillButton {
+                                x: parent.width - self.width - 24px;
+                                y: (parent.height - self.height) / 2;
+                                label: "Add folder";
+                                icon: @image-url("../icons/folder.svg");
+                                clicked => { root.add-folder(); }
+                            }
+                        }
+
+                        //themes
+                        SettingsRow {
+                            label: "Themes";
+                            last: true;
+
+                            Dropdown {
+                                x: parent.width - self.width - 24px;
+                                y: (parent.height - self.height) / 2;
+                                options: root.themes;
+                                selected <=> root.theme-index;
+                                chosen(i) => { root.theme-changed(i); }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                height: 80px;
+
+                DialogButton {
+                    x: root.pad;
+                    y: 20px;
+                    label: "Log out";
+                    icon: @image-url("../icons/logout.svg");
+                    kind: ButtonKind.secondary;
+                    clicked => { root.logout-clicked(); }
+                }
+            }
+
+            Rectangle { height: 40px; }
+        }
+    }
+}

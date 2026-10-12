@@ -1,4 +1,4 @@
-#include "playerController.h"
+﻿#include "playerController.h"
 #include <algorithm>
 #include <filesystem>
 
@@ -16,10 +16,13 @@ PlayerController::PlayerController(AudioBackend& a, TrackList& t)
     trackName = "";
     errorText = "";
     pos = -1;
+    anchorId = 0;
     queueName = "";
     shuffleOn = false;
-    repeatOne = false;
+    repeat = 0;
+    autoplayOn = false;
     counted = false;
+    playingFile = false;
 }
 
 
@@ -46,6 +49,11 @@ bool PlayerController::openFolder(const std::string& folder)
             dropFromQueue(baseQueue[i]);
     }
 
+    for (int i = userQueue.count(); i >= 1; i--) {
+        if (tracks.positionOfId(userQueue.get(i)) == 0)
+            userQueue.remove(userQueue.get(i));
+    }
+
     findPos();
     return tracks.getCount() > 0;
 }
@@ -54,22 +62,35 @@ bool PlayerController::openFolder(const std::string& folder)
 // A song id leaves the queue.
 void PlayerController::dropFromQueue(int id)
 {
+    int place = -1;
+
+    for (int i = 0; i < (int)order.size(); i++) {
+        if (order[i] == id)
+            place = i;
+    }
+
     baseQueue.erase(std::remove(baseQueue.begin(), baseQueue.end(), id), baseQueue.end());
     order.erase(std::remove(order.begin(), order.end(), id), order.end());
-    findPos();
+
+    while (userQueue.remove(id)) {}
+
+    if (place != -1 && place <= pos)
+        pos--;                                  // the place of the last played song moves up with the list
+
+    anchorId = (pos >= 0 && pos < (int)order.size()) ? order[pos] : 0;
 }
 
 
-// Where the playing song is in the queue.
+// Where the queue is: the place of the song that came from it last (a "play next" song does not move it).
 void PlayerController::findPos()
 {
     pos = -1;
 
-    if (currentId == 0)
+    if (anchorId == 0)
         return;
 
     for (int i = 0; i < (int)order.size(); i++) {
-        if (order[i] == currentId) {
+        if (order[i] == anchorId) {
             pos = i;
             return;
         }
@@ -116,6 +137,7 @@ void PlayerController::setQueue(const std::vector<int>& songNumbers, const std::
 
     // the playing song is only known once it starts, so look for the clicked one
     pos = -1;
+    anchorId = startId;
 
     for (int i = 0; i < (int)order.size(); i++) {
         if (order[i] == startId) {
@@ -156,11 +178,13 @@ void PlayerController::playAt(int place, int step)
             current = n;
             currentId = id;
             paused = false;
+            playingFile = false;
             trackName = songTitle(n);
 
             if (audio.load(path)) {
                 errorText = "";
                 pos = place;
+                anchorId = id;
                 counted = false;
                 audio.set_volume(volumePercent / 100.0f);
                 audio.play();
@@ -221,23 +245,99 @@ void PlayerController::playQueueShuffled(const std::vector<int>& songNumbers, co
 }
 
 
-void PlayerController::playQueueRow(int row)
+// Plays one song of the library right now, without moving the place in the queue
+// (a song added with "Add to queue" plays "in between"). False if it will not open.
+bool PlayerController::playId(int id)
 {
-    if (row < 0 || row >= (int)order.size())
-        return;
+    int n = tracks.positionOfId(id);
 
-    playAt(row, 1);
+    if (n == 0)
+        return false;
+
+    current = n;
+    currentId = id;
+    paused = false;
+    playingFile = false;
+    trackName = songTitle(n);
+
+    if (!audio.load(tracks.getTrack(n))) {
+        errorText = audio.last_error();
+        return false;
+    }
+
+    errorText = "";
+    counted = false;
+    audio.set_volume(volumePercent / 100.0f);
+    audio.play();
+    recent.add(id);
+    return true;
 }
 
 
-void PlayerController::next()
+// A loose file, like a recording. It is not a song of the library: no number, no favorites, no queue.
+bool PlayerController::playFilePath(const std::string& path, const std::string& title)
 {
+    if (!audio.load(path)) {
+        errorText = audio.last_error();
+        return false;
+    }
+
+    current = 0;
+    currentId = 0;
+    paused = false;
+    playingFile = true;
+    trackName = title;
+    errorText = "";
+    counted = true;                 // recordings are not counted as plays
+    audio.set_volume(volumePercent / 100.0f);
+    audio.play();
+    return true;
+}
+
+
+// The next song. First what was added with "Add to queue", then the queue itself.
+// byItself: the song just ended (so repeat off may stop here). A click on "next" never stops.
+void PlayerController::advance(bool byItself)
+{
+    while (userQueue.count() > 0) {
+        if (playId(userQueue.take()))
+            return;
+    }
+
     ensureQueue();
 
     if (order.empty())
         return;
 
-    playAt((pos + 1) % (int)order.size(), 1);       // pos -1 starts at the first song
+    int songs = (int)order.size();
+    bool atEnd = (pos >= songs - 1);
+
+    if (byItself && atEnd && repeat == 0) {
+        if (autoplayOn && tracks.getCount() > 0) {          // keep going with the whole library
+            std::vector<int> all;
+
+            for (int n = 1; n <= tracks.getCount(); n++)
+                all.push_back(n);
+
+            int from = tracks.positionOfId(anchorId);
+            setQueue(all, "All Songs", from != 0 ? anchorId : 0);
+            playAt(((pos + 1) % (int)order.size() + (int)order.size()) % (int)order.size(), 1);
+            return;
+        }
+
+        audio.pause();                                       // the queue is over
+        audio.seek(0);
+        paused = true;
+        return;
+    }
+
+    playAt((pos + 1) % songs, 1);                            // pos -1 starts at the first song
+}
+
+
+void PlayerController::next()
+{
+    advance(false);
 }
 
 
@@ -250,13 +350,19 @@ void PlayerController::previous()
     if (order.empty())
         return;
 
-    if (current != 0 && audio.position() > 3.0) {
+    if ((current != 0 || playingFile) && audio.position() > 3.0) {
         restart();
         return;
     }
 
     int songs = (int)order.size();
-    playAt(pos <= 0 ? songs - 1 : pos - 1, -1);     // nothing playing, or the first song: go to the last
+
+    if (currentId != anchorId && pos >= 0) {                 // a "play next" song plays: go back to the queue song
+        playAt(pos, -1);
+        return;
+    }
+
+    playAt(pos <= 0 ? songs - 1 : pos - 1, -1);              // nothing playing, or the first song: go to the last
 }
 
 
@@ -271,11 +377,17 @@ void PlayerController::setShuffle(bool on)
         return;
 
     if (on)
-        shuffleOrder(currentId);         // the playing song goes to the front
+        shuffleOrder(anchorId);          // the song the queue is at goes to the front
     else
         order = baseQueue;               // back to the order of the list
 
     findPos();
+}
+
+
+void PlayerController::toggleShuffle()
+{
+    setShuffle(!shuffleOn);
 }
 
 
@@ -285,36 +397,113 @@ bool PlayerController::isShuffle() const
 }
 
 
-void PlayerController::setRepeat(bool on)
+void PlayerController::setRepeatMode(int mode)
 {
-    repeatOne = on;
+    repeat = (mode < 0 || mode > 2) ? 0 : mode;
 }
 
 
-bool PlayerController::isRepeat() const
+int PlayerController::repeatMode() const
 {
-    return repeatOne;
+    return repeat;
 }
 
 
-int PlayerController::queueCount() const
+void PlayerController::toggleRepeat()
 {
-    return (int)order.size();
+    repeat = (repeat + 1) % 3;
 }
 
 
-int PlayerController::queueSongNumber(int row) const
+void PlayerController::setAutoplay(bool on)
 {
-    if (row < 0 || row >= (int)order.size())
-        return 0;
-
-    return tracks.positionOfId(order[row]);
+    autoplayOn = on;
 }
 
 
-int PlayerController::queuePosition() const
+bool PlayerController::isAutoplay() const
 {
-    return pos;
+    return autoplayOn;
+}
+
+
+// The songs that play next: the "Add to queue" songs first, then what is left of the queue.
+std::vector<int> PlayerController::upcoming(int most) const
+{
+    std::vector<int> numbers;
+
+    for (int i = 1; i <= userQueue.count() && (int)numbers.size() < most; i++) {
+        int n = tracks.positionOfId(userQueue.get(i));
+
+        if (n != 0)
+            numbers.push_back(n);
+    }
+
+    int songs = (int)order.size();
+
+    for (int i = pos + 1; i < songs && (int)numbers.size() < most; i++) {
+        int n = tracks.positionOfId(order[i]);
+
+        if (n != 0)
+            numbers.push_back(n);
+    }
+
+    if (repeat == 1) {                          // the queue starts again: those songs come after
+        for (int i = 0; i <= pos && i < songs && (int)numbers.size() < most; i++) {
+            int n = tracks.positionOfId(order[i]);
+
+            if (n != 0)
+                numbers.push_back(n);
+        }
+    }
+
+    return numbers;
+}
+
+
+// A click on a row of the queue panel: that song plays now. A song that was added with "Add to queue"
+// leaves the line; a song of the queue itself moves the queue to it.
+void PlayerController::playUpcoming(int songNumber)
+{
+    int id = tracks.getId(songNumber);
+
+    if (id == 0)
+        return;
+
+    if (userQueue.remove(id)) {
+        playId(id);
+        return;
+    }
+
+    for (int i = 0; i < (int)order.size(); i++) {
+        if (order[i] == id) {
+            playAt(i, 1);
+            return;
+        }
+    }
+
+    playId(id);
+}
+
+
+void PlayerController::addToQueue(int songNumber)
+{
+    int id = tracks.getId(songNumber);
+
+    if (id != 0)
+        userQueue.add(id);
+}
+
+
+void PlayerController::removeFromQueue(int songNumber)
+{
+    userQueue.remove(tracks.getId(songNumber));
+}
+
+
+bool PlayerController::isQueued(int songNumber) const
+{
+    return userQueue.contains(tracks.getId(songNumber));
 }
 
 
@@ -351,9 +540,12 @@ void PlayerController::stop()
     errorText = "";
     baseQueue.clear();
     order.clear();
+    userQueue.clear();
     pos = -1;
+    anchorId = 0;
     queueName = "";
     counted = false;
+    playingFile = false;
 }
 
 
@@ -376,7 +568,7 @@ void PlayerController::resume()
 // One play/pause button: pauses if playing, plays if paused.
 void PlayerController::togglePlay()
 {
-    if (current == 0)
+    if (!hasSong())
         return;
 
     if (paused)
@@ -436,7 +628,7 @@ void PlayerController::seekTo(double seconds)
 // Also counts a play once the song has been heard for 30 seconds (or half of a short song).
 void PlayerController::update()
 {
-    if (current == 0 || paused)
+    if (!hasSong() || paused)
         return;                  // nothing is playing, or we paused
 
     double length = audio.duration();
@@ -452,12 +644,17 @@ void PlayerController::update()
     if (!finished)
         return;
 
-    if (repeatOne) {
+    if (playingFile) {           // a recording ended: wait at the start
+        audio.pause();
+        audio.seek(0);
+        paused = true;
+    }
+    else if (repeat == 2) {
         restart();
         counted = false;         // it plays again, so it can count again
     }
     else {
-        next();
+        advance(true);
     }
 }
 
@@ -493,25 +690,37 @@ void PlayerController::setVolume(int percent)
 // Heart button: adds the song to favorites, or removes it if it is already there.
 void PlayerController::toggleFavorite()
 {
-    if (current == 0)
-        return;
-
-    int id = tracks.getId(current);
-
-    if (favorites.contains(id))
-        favorites.remove(id);
-    else
-        favorites.add(id);
+    toggleFavoriteSong(current);
 }
 
 
 // Is the song playing now a favorite?
 bool PlayerController::isFavorite() const
 {
-    if (current == 0)
-        return false;
+    return isFavoriteSong(current);
+}
 
-    return favorites.contains(tracks.getId(current));
+
+bool PlayerController::isFavoriteSong(int songNumber) const
+{
+    int id = tracks.getId(songNumber);
+
+    return id != 0 && favorites.contains(id);
+}
+
+
+// The heart on any row.
+void PlayerController::toggleFavoriteSong(int songNumber)
+{
+    int id = tracks.getId(songNumber);
+
+    if (id == 0)
+        return;
+
+    if (favorites.contains(id))
+        favorites.remove(id);
+    else
+        favorites.add(id);
 }
 
 
@@ -588,12 +797,15 @@ int PlayerController::playlistSongNumber(const std::string& name, int row) const
 // The name of the song that comes after the one playing now.
 std::string PlayerController::nextSongTitle() const
 {
+    std::vector<int> next = upcoming(1);
+
+    if (!next.empty())
+        return tracks.getTitle(next[0]);
+
     if (order.empty())
         return "";
 
-    int place = (pos + 1) % (int)order.size();     // nothing playing: the first song
-
-    return tracks.getTitle(tracks.positionOfId(order[place]));
+    return tracks.getTitle(tracks.positionOfId(order[0]));       // the queue starts again
 }
 
 
@@ -718,10 +930,62 @@ std::string PlayerController::lastError() const
     return errorText;
 }
 
+bool PlayerController::hasSong() const
+{
+    return !trackName.empty();
+}
+
+
 // Playlists
 bool PlayerController::createPlaylist(const std::string& name)
 {
     return playlists.create(name);
+}
+
+bool PlayerController::renamePlaylist(const std::string& oldName, const std::string& newName)
+{
+    return playlists.rename(oldName, newName);
+}
+
+std::string PlayerController::freePlaylistName(const std::string& base) const
+{
+    return playlists.freeName(base);
+}
+
+std::vector<std::string> PlayerController::playlistsWithSong(int songNumber) const
+{
+    std::vector<std::string> names;
+    int id = tracks.getId(songNumber);
+
+    if (id == 0)
+        return names;
+
+    for (int i = 1; i <= playlists.count(); i++) {
+        if (playlists.hasSong(playlists.getName(i), id))
+            names.push_back(playlists.getName(i));
+    }
+
+    return names;
+}
+
+int PlayerController::playlistRowOf(const std::string& name, int songNumber) const
+{
+    int id = tracks.getId(songNumber);
+
+    if (id == 0)
+        return 0;
+
+    for (int row = 1; row <= playlists.songCount(name); row++) {
+        if (playlists.getSong(name, row) == id)
+            return row;
+    }
+
+    return 0;
+}
+
+int PlayerController::playCount(int songNumber) const
+{
+    return counts.get(tracks.getId(songNumber));
 }
 
 int PlayerController::playlistCount() const
@@ -830,4 +1094,4 @@ int PlayerController::playlistSongCount(const std::string& name) const
 std::string PlayerController::playlistSongTitle(const std::string& name, int n) const
 {
     return tracks.getTitle(tracks.positionOfId(playlists.getSong(name, n)));
-}
+}

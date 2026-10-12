@@ -1,0 +1,168 @@
+﻿import { Theme } from "../theme.slint";
+import { DialogFrame, DialogButton, ButtonKind } from "dialog-frame.slint";
+import { PlaylistChoice } from "add-to-playlist.slint";
+import { SearchField } from "search-field.slint";
+import { PageScroll } from "page-scroll.slint";
+
+//"Add to playlist" for a song picked in a row's "..." menu (the player bar has its own popup for the playing song).
+//every row ticks the playlists the song is in, a click adds or removes it.
+export component PickPlaylistDialog inherits DialogFrame {
+    in property <string> song-title;
+    in property <[PlaylistChoice]> choices;
+    callback toggled(int);                 //row in choices
+    callback new-playlist();               //"New playlist": the page asks for a name
+    callback search(string);
+
+    title: "Add to playlist";
+    card-width: 420px;
+
+    Text {
+        text: root.song-title;
+        color: Theme.text-muted;
+        font-size: 14px;
+        font-weight: 700;
+        overflow: elide;
+        height: 18px;
+    }
+
+    SearchField {
+        placeholder: "Find a playlist";
+        height: 38px;
+        background: Theme.input-bg;
+        edited(t) => { root.search(t); }
+    }
+
+    //new playlist
+    Rectangle {
+        height: 52px;
+        border-radius: 8px;
+        background: new-touch.has-hover ? Theme.nav-hover : transparent;
+
+        new-touch := TouchArea {
+            mouse-cursor: MouseCursor.pointer;
+            clicked => { root.new-playlist(); }
+        }
+        Rectangle {
+            x: 4px;
+            y: (parent.height - self.height) / 2;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: Theme.nav-hover;
+            Image {
+                source: @image-url("../icons/plus.svg");
+                colorize: Theme.text-primary;
+                width: 22px;
+                height: 22px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+            }
+        }
+        Text {
+            x: 56px;
+            height: parent.height;
+            text: "New playlist";
+            color: Theme.text-primary;
+            font-size: 16px;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+    }
+
+    //playlists, scrolls when there are more than fit
+    Rectangle {
+        height: root.choices.length == 0 ? 40px : min(root.choices.length * 56px, 252px);
+
+        if root.choices.length == 0 : Text {
+            text: "No playlists yet";
+            color: Theme.text-muted;
+            font-size: 14px;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+
+        PageScroll {
+            VerticalLayout {
+                for c[i] in root.choices : Rectangle {
+                    height: 56px;
+                    border-radius: 8px;
+                    background: row-touch.has-hover ? Theme.nav-hover : transparent;
+
+                    row-touch := TouchArea {
+                        mouse-cursor: MouseCursor.pointer;
+                        clicked => { root.toggled(i); }
+                    }
+
+                    Rectangle {
+                        x: 4px;
+                        y: (parent.height - self.height) / 2;
+                        width: 40px;
+                        height: 40px;
+                        border-radius: 8px;
+                        clip: true;
+                        background: Theme.art-gradient;
+                        Image {
+                            source: c.art;
+                            width: 100%;
+                            height: 100%;
+                            image-fit: cover;
+                        }
+                    }
+                    Text {
+                        x: 56px;
+                        y: 8px;
+                        width: max(0px, parent.width - 56px - 56px);
+                        height: 22px;
+                        text: c.title;
+                        color: Theme.text-primary;
+                        font-size: 15px;
+                        font-weight: 700;
+                        overflow: elide;
+                    }
+                    Text {
+                        x: 56px;
+                        y: 30px;
+                        width: max(0px, parent.width - 56px - 56px);
+                        height: 18px;
+                        text: c.count == 1 ? "1 song" : "\{c.count} songs";
+                        color: Theme.text-muted;
+                        font-size: 12px;
+                        font-weight: 700;
+                    }
+
+                    //tick
+                    Rectangle {
+                        x: parent.width - self.width - 14px;
+                        y: (parent.height - self.height) / 2;
+                        width: 22px;
+                        height: 22px;
+                        border-radius: self.width / 2;
+                        border-width: c.checked ? 0px : 2px;
+                        border-color: Theme.control-muted;
+                        background: c.checked ? Theme.pink : transparent;
+                        animate background { duration: Theme.anim-fast; }
+
+                        if c.checked : Image {
+                            source: @image-url("../icons/check.svg");
+                            colorize: Theme.primary;
+                            width: 14px;
+                            height: 14px;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    HorizontalLayout {
+        alignment: end;
+        padding-top: 4px;
+
+        DialogButton {
+            label: "Done";
+            clicked => { root.closed(); }
+        }
+    }
+}

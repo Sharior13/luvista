@@ -1,4 +1,4 @@
-#include "trackList.h"
+﻿#include "trackList.h"
 #include "appPaths.h"
 #include <fstream>
 #include <filesystem>
@@ -29,24 +29,33 @@ static bool isMusic(const fs::path& p)
 }
 
 
-// Says yes when the file lives in the Windows recordings folder
-// (Documents\Sound Recordings). Recordings have their own screen and must NEVER
-// show up as music - even when MUSIC_FOLDER covers that folder.
+// Small letters and "/" slashes only, so two ways of writing the same address compare equal.
+static std::string plainAddress(std::string text)
+{
+    for (char& c : text)
+        c = c == '\\' ? '/' : (char)std::tolower((unsigned char)c);
+
+    return text;
+}
+
+
+// Says yes when the file is a microphone recording: it lives in the Windows recordings folder
+// (Documents\Sound Recordings) or inside one of the profile folders (where Luvista saves its own).
+// Recordings have their own screen and must NEVER show up as music - even when the music
+// folder covers them.
 static bool isRecordingFile(const fs::path& p)
 {
+    static const std::string profiles = plainAddress(AppPaths::profilesFolder()) + "/";
     std::string where;
 
     try {
-        where = p.string();
+        where = plainAddress(p.string());
     }
     catch (const std::system_error&) {
         return false;   // a name plain text cannot hold: scan() skips such a file anyway
     }
 
-    for (char& c : where)
-        c = (char)std::tolower((unsigned char)c);
-
-    return where.find("sound recordings") != std::string::npos;
+    return where.find("sound recordings") != std::string::npos || where.rfind(profiles, 0) == 0;
 }
 
 
@@ -609,4 +618,11 @@ bool TrackList::matches(int n, const std::string& query) const
     return lowerCase(songs[n - 1].title).find(wanted) != std::string::npos ||
         lowerCase(songs[n - 1].artist).find(wanted) != std::string::npos ||
         lowerCase(songs[n - 1].album).find(wanted) != std::string::npos;
+}
+
+
+// The folder that was scanned last ("" if none yet).
+std::string TrackList::getFolder() const
+{
+    return folder;
 }

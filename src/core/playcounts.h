@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <vector>
 
 // How many times each song was played (for "Most played" on the home page).

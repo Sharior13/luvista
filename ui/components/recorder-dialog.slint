@@ -1,0 +1,157 @@
+﻿import { Theme } from "../theme.slint";
+import { DialogFrame, DialogButton, ButtonKind } from "dialog-frame.slint";
+import { TextBox } from "text-box.slint";
+import { Format } from "../format.slint";
+
+//what the recorder is doing. The backend moves it from recording to saved when it has written the file.
+export enum RecordState { idle, recording, saved }
+
+//the Start Recording window: a microphone, a clock and a level meter.
+//idle: pick an optional name and start. recording: clock and meter run, stop saves, discard throws it away. saved: done.
+export component RecorderDialog inherits DialogFrame {
+    in property <RecordState> state: RecordState.idle;
+    in property <float> seconds;           //length so far
+    in property <float> level;             //how loud it is right now, 0..1
+    in property <string> error;            //e.g. "No microphone found"
+    in property <string> saved-name;       //name of the file just saved
+    in-out property <string> name;         //optional name for the recording, empty = rec_1, rec_2 ...
+    callback start(string);                //name
+    callback stop();                       //stop and save
+    callback discard();                    //stop and delete
+    callback again();                      //"Record another" after saving
+
+    property <bool> recording: root.state == RecordState.recording;
+    property <bool> saved: root.state == RecordState.saved;
+
+    title: root.saved ? "Recording saved" : (root.recording ? "Recording" : "New recording");
+    card-width: 440px;
+    closable: !root.recording;             //stop or discard first
+
+    //microphone with a ring that swells with the sound
+    Rectangle {
+        height: 150px;
+
+        ring := Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: root.recording ? 96px + root.level * 48px : 96px;
+            height: self.width;
+            border-radius: self.width / 2;
+            background: root.recording ? #ff4fa340 : transparent;
+            animate width { duration: 120ms; easing: ease-out; }
+        }
+        Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 96px;
+            height: 96px;
+            border-radius: self.width / 2;
+            background: root.saved ? Theme.pink : Theme.art-gradient;
+
+            Image {
+                source: root.saved ? @image-url("../icons/check.svg") : @image-url("../icons/lyrics.svg");
+                colorize: root.saved ? Theme.primary : Theme.text-primary;
+                width: 46px;
+                height: 46px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+            }
+        }
+    }
+
+    //clock
+    Text {
+        text: root.saved ? root.saved-name : Format.clock(root.seconds);
+        color: Theme.text-primary;
+        font-size: root.saved ? 18px : 40px;
+        font-weight: 800;
+        horizontal-alignment: center;
+        overflow: elide;
+        height: 48px;
+    }
+
+    //level meter: 24 bars, they grow with the sound while recording
+    Rectangle {
+        height: 44px;
+
+        HorizontalLayout {
+            spacing: 4px;
+            alignment: center;
+
+            for i in 24 : Rectangle {
+                width: 6px;
+                //taller in the middle, so it looks like a waveform
+                property <float> shape: 0.35 + 0.65 * Math.abs(Math.sin((i * 15) * 1deg));
+                height: root.recording ? max(4px, root.level * 44px * self.shape) : 4px;
+                y: (parent.height - self.height) / 2;
+                border-radius: 3px;
+                background: root.recording ? Theme.pink : #ffffff30;
+                animate height { duration: 100ms; }
+            }
+        }
+    }
+
+    //name, only before it starts
+    if root.state == RecordState.idle : TextBox {
+        label: "Recording name (optional)";
+        placeholder: "rec_1";
+        text <=> root.name;
+        autofocus: true;
+        accepted(t) => { root.start(t); }
+    }
+
+    if root.state == RecordState.idle && root.error == "" : Text {
+        text: "Uses your default microphone. The recording is saved to Recordings as an MP3.";
+        color: Theme.text-muted;
+        font-size: 13px;
+        font-weight: 700;
+        wrap: word-wrap;
+    }
+
+    if root.error != "" : Text {
+        text: root.error;
+        color: Theme.danger;
+        font-size: 13px;
+        font-weight: 700;
+        wrap: word-wrap;
+    }
+
+    HorizontalLayout {
+        spacing: 12px;
+        alignment: end;
+        padding-top: 4px;
+
+        if root.state == RecordState.idle : DialogButton {
+            label: "Cancel";
+            kind: ButtonKind.secondary;
+            clicked => { root.closed(); }
+        }
+        if root.state == RecordState.idle : DialogButton {
+            label: "Start recording";
+            icon: @image-url("../icons/record.svg");
+            clicked => { root.start(root.name); }
+        }
+
+        if root.recording : DialogButton {
+            label: "Discard";
+            kind: ButtonKind.secondary;
+            clicked => { root.discard(); }
+        }
+        if root.recording : DialogButton {
+            label: "Stop and save";
+            icon: @image-url("../icons/stop.svg");
+            kind: ButtonKind.danger;
+            clicked => { root.stop(); }
+        }
+
+        if root.saved : DialogButton {
+            label: "Record another";
+            kind: ButtonKind.secondary;
+            clicked => { root.again(); }
+        }
+        if root.saved : DialogButton {
+            label: "Done";
+            clicked => { root.closed(); }
+        }
+    }
+}

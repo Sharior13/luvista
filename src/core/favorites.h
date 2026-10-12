@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <string>
 
 // Favorite songs. The file holds song ids, one per line.

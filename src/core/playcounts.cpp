@@ -1,4 +1,4 @@
-#include "playcounts.h"
+﻿#include "playcounts.h"
 #include "appPaths.h"
 #include <algorithm>
 #include <cstdlib>

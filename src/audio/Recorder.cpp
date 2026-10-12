@@ -1,15 +1,12 @@
-#include "Recorder.h"
+﻿#include "Recorder.h"
 
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <system_error>
-
-#define NOMINMAX
-#include <windows.h>
-#include <shlobj.h> // SHGetKnownFolderPath
 
 extern "C"
 {
@@ -20,21 +17,6 @@ extern "C"
 static const int kSampleRate = 44100;
 static const int kBitrateKbps = 128;
 
-// every recording is saved in the Windows recordings folder:
-// C:\Users\<you>\Documents\Sound Recordings (the one Windows Voice Recorder uses)
-static std::string recordingsFolder()
-{
-    std::string result = "Sound Recordings"; // fallback if Windows can't tell us the Documents folder
-
-    PWSTR documents = nullptr;
-    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents, 0, nullptr, &documents)))
-    {
-        result = (std::filesystem::path(documents) / "Sound Recordings").string();
-    }
-    CoTaskMemFree(documents);
-    return result;
-}
-
 static bool fileExists(const std::string& path)
 {
     std::ifstream test(path.c_str(), std::ios::binary);
@@ -42,7 +24,7 @@ static bool fileExists(const std::string& path)
 }
 
 Recorder::Recorder()
-    : m_device(), m_file(nullptr), m_recording(false), m_path(), m_partPath(), m_error()
+    : m_device(), m_file(nullptr), m_recording(false), m_level(0.0f), m_path(), m_partPath(), m_error()
 {
 }
 
@@ -59,6 +41,16 @@ void Recorder::dataCallback(ma_device* device, void* /*output*/, const void* inp
     {
         // mono, 16-bit: one frame = one sample
         std::fwrite(input, sizeof(ma_int16), frameCount, self->m_file);
+
+        // loudest sample of this piece, for the level meter
+        const ma_int16* samples = static_cast<const ma_int16*>(input);
+        int peak = 0;
+        for (ma_uint32 i = 0; i < frameCount; i++)
+        {
+            int v = samples[i] < 0 ? -samples[i] : samples[i];
+            if (v > peak) peak = v;
+        }
+        self->m_level = peak / 32768.0f;
     }
 }
 
@@ -108,6 +100,7 @@ bool Recorder::start(const std::string& outPath)
 
     m_path = outPath;
     m_partPath = partPath;
+    m_startedAt = std::chrono::steady_clock::now();
     m_recording = true;
     return true;
 }
@@ -249,11 +242,9 @@ const std::string& Recorder::lastError() const
     return m_error;
 }
 
-// first free rec_N.mp3 in the Windows Sound Recordings folder (created if missing)
-std::string Recorder::nextRecordingPath()
+// first free rec_N.mp3 in the folder (created if missing)
+std::string Recorder::nextPathIn(const std::string& folder)
 {
-    const std::string folder = recordingsFolder();
-
     std::error_code ec;
     std::filesystem::create_directories(folder, ec); // does nothing if it already exists
 
@@ -270,34 +261,67 @@ std::string Recorder::nextRecordingPath()
     return base + "rec_new.mp3";
 }
 
-// the folder recordings are saved in (Documents\Sound Recordings)
-std::string Recorder::folder()
+// seconds since start() (0 when nothing is recording)
+double Recorder::seconds() const
 {
-    return recordingsFolder();
+    if (!m_recording)
+    {
+        return 0.0;
+    }
+    return std::chrono::duration<double>(std::chrono::steady_clock::now() - m_startedAt).count();
 }
 
-// number of finished recordings (rec_*.mp3) in the Sound Recordings folder
-int Recorder::recordingCount()
+float Recorder::level() const
 {
-    namespace fs = std::filesystem;
-    std::error_code ec;
-    const std::string folder = recordingsFolder();
+    return m_recording ? m_level.load() : 0.0f;
+}
 
-    if (!fs::exists(folder, ec))
+// stop and delete: the temp file and any MP3 that stop() made
+void Recorder::discard()
+{
+    if (!m_recording)
     {
-        return 0;
+        return;
     }
 
-    int count = 0;
-    for (fs::directory_iterator it(folder, ec), end; !ec && it != end; it.increment(ec))
+    std::string saved = stop();
+    if (!saved.empty())
     {
-        std::error_code fileEc;
-        std::string name = it->path().filename().string();
-        if (it->is_regular_file(fileEc) && it->path().extension() == ".mp3" && name.rfind("rec_", 0) == 0)
+        std::remove(saved.c_str());
+    }
+    m_level = 0.0f;
+}
+
+// <folder>/<name>.mp3 for a name the user typed
+std::string Recorder::pathForName(const std::string& folder, const std::string& name, std::string& error)
+{
+    error = "";
+
+    // drop the letters a file name cannot have, and the spaces around
+    std::string safe;
+    for (char c : name)
+    {
+        if (std::string("\\/:*?\"<>|").find(c) == std::string::npos)
         {
-            ++count;
+            safe += c;
         }
     }
-    return count;
-}
+    const size_t first = safe.find_first_not_of(" \t");
+    safe = (first == std::string::npos) ? "" : safe.substr(first, safe.find_last_not_of(" \t") - first + 1);
 
+    if (safe.empty())
+    {
+        return nextPathIn(folder);
+    }
+
+    std::error_code ec;
+    std::filesystem::create_directories(folder, ec);
+
+    const std::string path = folder + "/" + safe + ".mp3";
+    if (fileExists(path))
+    {
+        error = "A recording with that name already exists";
+        return "";
+    }
+    return path;
+}

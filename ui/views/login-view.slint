@@ -1,12 +1,177 @@
-import { Theme } from "../theme.slint";
+﻿import { Theme } from "../theme.slint";
 import { Session } from "../session.slint";
 import { WaveLines } from "../components/wave-lines.slint";
 import { ActionCard, ProfileCard } from "../components/login-card.slint";
+import { TextBox } from "../components/text-box.slint";
+import { DialogButton, ButtonKind } from "../components/dialog-frame.slint";
 
-//screen to show if not logged in: pick a saved profile, add one, or continue as guest
+//which screen of the login flow is showing
+export enum LoginMode { choose, sign-in, create, picture }
+
+//the dark card of the sign in / create profile screens: round logo and heading on the left, the form (children) on the right
+component AuthCard inherits Rectangle {
+    in property <string> heading;
+    in property <image> picture;                //shown in the circle instead of the gradient when set
+    in property <bool> show-user-icon: false;   //profile icon in the circle (last step, while there is no picture)
+
+    border-radius: 10px;
+    background: #1e1633;
+
+    //left: logo and heading
+    VerticalLayout {
+        x: 0px;
+        width: parent.width * 0.5;
+        height: parent.height;
+        alignment: center;
+        spacing: 18px;
+
+        Rectangle {
+            height: 116px;
+
+            Rectangle {
+                x: (parent.width - self.width) / 2;
+                width: 116px;
+                height: 116px;
+                border-radius: self.width / 2;
+                clip: true;
+                background: Theme.art-gradient;
+
+                if root.show-user-icon && root.picture.width == 0 : Image {
+                    source: @image-url("../icons/user.svg");
+                    colorize: Theme.text-primary;
+                    width: 70px;
+                    height: 70px;
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                }
+                Image {
+                    source: root.picture;
+                    width: 100%;
+                    height: 100%;
+                    image-fit: cover;
+                }
+            }
+        }
+        Text {
+            text: root.heading;
+            color: Theme.text-primary;
+            font-size: 24px;
+            font-weight: 800;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+        }
+    }
+
+    //right: the form
+    VerticalLayout {
+        x: parent.width * 0.55;
+        width: min(330px, parent.width * 0.38);
+        height: parent.height;
+        alignment: center;
+        spacing: 10px;
+        @children
+    }
+}
+
+//square tick box with a label ("Remember me")
+component CheckRow inherits Rectangle {
+    in property <string> label;
+    in-out property <bool> checked;
+    height: 24px;
+
+    TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.checked = !root.checked; }
+    }
+    Rectangle {
+        x: 0px;
+        y: (parent.height - self.height) / 2;
+        width: 16px;
+        height: 16px;
+        border-radius: 3px;
+        background: root.checked ? Theme.toggle-on : transparent;
+        border-width: root.checked ? 0px : 2px;
+        border-color: Theme.control-muted;
+
+        if root.checked : Image {
+            source: @image-url("../icons/check.svg");
+            colorize: Theme.text-primary;
+            width: 12px;
+            height: 12px;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+        }
+    }
+    Text {
+        x: 24px;
+        height: parent.height;
+        text: root.label;
+        color: Theme.text-primary;
+        font-size: 12px;
+        font-weight: 700;
+        vertical-alignment: center;
+    }
+}
+
+//underlined, clickable text ("Create one.")
+component LinkText inherits Text {
+    callback clicked();
+    color: Theme.pink;
+    font-size: 13px;
+    font-weight: 800;
+    TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+//screen to show if not logged in. Pick a saved profile, add one, continue as guest,
+//or sign in with a username / email and a password.
 export component LoginView inherits Rectangle {
     background: Theme.login-background;
     clip: true;
+
+    in-out property <LoginMode> mode: LoginMode.choose;
+
+    //what was typed
+    in-out property <string> user;              //sign in: username or email
+    in-out property <string> password;
+    in-out property <string> new-name;          //create profile
+    in-out property <string> new-email;
+    in-out property <string> new-password;
+    in-out property <string> confirm-password;
+    //error found by the screen itself, before asking the backend
+    property <string> local-error;
+    //size and place of the dark card of the sign in / create screens
+    property <length> card-w: min(900px, root.width - 96px);
+    property <length> card-h: min(480px, root.height - 48px);
+    property <string> shown-error: root.local-error != "" ? root.local-error : Session.error;
+
+    function go(m: LoginMode) {
+        root.local-error = "";
+        Session.error = "";
+        root.mode = m;
+    }
+
+    function submit-sign-in() {
+        if (root.user == "" || root.password == "") {
+            root.local-error = "Enter your username or email and your password";
+            return;
+        }
+        root.local-error = "";
+        Session.login(root.user, root.password);
+    }
+
+    function submit-create() {
+        if (root.new-name == "") { root.local-error = "Pick a username"; return; }
+        if (root.new-email == "") { root.local-error = "Enter your email address"; return; }
+        if (root.new-password == "") { root.local-error = "Pick a password"; return; }
+        if (root.new-password != root.confirm-password) { root.local-error = "The passwords do not match"; return; }
+        root.local-error = "";
+        if (Session.create-profile(root.new-name, root.new-email, root.new-password)) {
+            root.mode = LoginMode.picture;
+        }
+    }
 
     //soft glows in two corners
     Rectangle {
@@ -30,7 +195,8 @@ export component LoginView inherits Rectangle {
         width: parent.width;
     }
 
-    VerticalLayout {
+    //1. who is listening
+    if root.mode == LoginMode.choose : VerticalLayout {
         alignment: center;
         spacing: 24px;
 
@@ -83,7 +249,10 @@ export component LoginView inherits Rectangle {
                     ActionCard {
                         label: "Add Profile";
                         icon: @image-url("../icons/plus.svg");
-                        clicked => { Session.add-profile(); }
+                        clicked => {
+                            Session.add-profile();
+                            root.go(LoginMode.create);
+                        }
                     }
 
                     ActionCard {
@@ -93,6 +262,184 @@ export component LoginView inherits Rectangle {
                         clicked => { Session.continue-as-guest(); }
                     }
                 }
+            }
+        }
+
+        //a profile that is not in the list
+        Rectangle {
+            height: 24px;
+            LinkText {
+                x: (parent.width - self.width) / 2;
+                text: "Sign in with a username or email";
+                clicked => { root.go(LoginMode.sign-in); }
+            }
+        }
+    }
+
+    //2. sign in
+    if root.mode == LoginMode.sign-in : AuthCard {
+        width: root.card-w;
+        height: root.card-h;
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
+        heading: "Sign in to\nLuvista Music Player";
+
+        TextBox {
+            label: "Username / Email";
+            text <=> root.user;
+            autofocus: true;
+            invalid: root.shown-error != "";
+            accepted(t) => { root.submit-sign-in(); }
+        }
+        TextBox {
+            label: "Password";
+            password: true;
+            text <=> root.password;
+            invalid: root.shown-error != "";
+            accepted(t) => { root.submit-sign-in(); }
+        }
+
+        if root.shown-error != "" : Text {
+            text: root.shown-error;
+            color: Theme.danger;
+            font-size: 13px;
+            font-weight: 700;
+            wrap: word-wrap;
+        }
+
+        DialogButton {
+            label: Session.busy ? "Signing in..." : "Sign In";
+            enabled: !Session.busy;
+            clicked => { root.submit-sign-in(); }
+        }
+
+        HorizontalLayout {
+            spacing: 6px;
+            alignment: center;
+            padding-top: 4px;
+
+            Text {
+                text: "Don't have a profile?";
+                color: Theme.text-primary;
+                font-size: 13px;
+                vertical-alignment: center;
+            }
+            LinkText {
+                text: "Create one.";
+                clicked => { root.go(LoginMode.create); }
+            }
+        }
+        HorizontalLayout {
+            alignment: center;
+            LinkText {
+                text: "Back to profiles";
+                clicked => { root.go(LoginMode.choose); }
+            }
+        }
+    }
+
+    //3. create a profile
+    if root.mode == LoginMode.create : AuthCard {
+        width: root.card-w;
+        height: root.card-h;
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
+        heading: "Create a\nLuvista Profile";
+
+        TextBox {
+            label: "Username";
+            text <=> root.new-name;
+            autofocus: true;
+        }
+        TextBox {
+            label: "Email";
+            text <=> root.new-email;
+        }
+        TextBox {
+            label: "Password";
+            password: true;
+            text <=> root.new-password;
+        }
+        TextBox {
+            label: "Confirm Password";
+            password: true;
+            text <=> root.confirm-password;
+            invalid: root.confirm-password != "" && root.confirm-password != root.new-password;
+            accepted(t) => { root.submit-create(); }
+        }
+
+        CheckRow {
+            label: "Remember me";
+            checked <=> Session.remember;
+        }
+
+        if root.shown-error != "" : Text {
+            text: root.shown-error;
+            color: Theme.danger;
+            font-size: 13px;
+            font-weight: 700;
+            wrap: word-wrap;
+        }
+
+        HorizontalLayout {
+            spacing: 12px;
+            alignment: space-between;
+
+            LinkText {
+                text: "Already have a profile?";
+                vertical-alignment: center;
+                clicked => { root.go(LoginMode.sign-in); }
+            }
+            DialogButton {
+                label: "Next";
+                min-width: 84px;
+                clicked => { root.submit-create(); }
+            }
+        }
+    }
+
+    //4. profile picture, last step of create profile
+    if root.mode == LoginMode.picture : AuthCard {
+        width: root.card-w;
+        height: root.card-h;
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
+        heading: "Welcome,\n\{root.new-name}";
+        picture: Session.new-picture;
+        show-user-icon: true;
+
+        Text {
+            text: "Add a profile picture";
+            color: Theme.text-primary;
+            font-size: 18px;
+            font-weight: 800;
+        }
+        Text {
+            text: "Pick an image from your computer. You can change it later on your profile page.";
+            color: Theme.text-muted;
+            font-size: 13px;
+            font-weight: 700;
+            wrap: word-wrap;
+        }
+        DialogButton {
+            label: "Choose picture";
+            icon: @image-url("../icons/camera.svg");
+            kind: ButtonKind.secondary;
+            clicked => { Session.pick-picture(); }
+        }
+        HorizontalLayout {
+            spacing: 12px;
+            alignment: end;
+            padding-top: 8px;
+
+            DialogButton {
+                label: "Skip";
+                kind: ButtonKind.secondary;
+                clicked => { Session.finish-profile(); }
+            }
+            DialogButton {
+                label: "Finish";
+                clicked => { Session.finish-profile(); }
             }
         }
     }

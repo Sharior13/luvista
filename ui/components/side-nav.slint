@@ -1,9 +1,10 @@
-import { Theme } from "../theme.slint";
+﻿import { Theme } from "../theme.slint";
 import { NavItem } from "nav-item.slint";
 import { PlaylistItem, PlaylistInfo } from "playlist-item.slint";
 import { PageScroll } from "page-scroll.slint";
 
-export enum NavSection { home, songs, favorites, recordings }
+//profile, settings and artist are pages that are not in the sidebar, so none of its entries is highlighted on them
+export enum NavSection { home, songs, favorites, recordings, profile, settings, artist }
 
 //collapsible side navigation. Click the logo to collapse/expand it.
 export component SideNav inherits Rectangle {

@@ -1,4 +1,4 @@
-// miniaudio's implementation: must be defined in exactly ONE .cpp of the project
+﻿// miniaudio's implementation: must be defined in exactly ONE .cpp of the project
 // It must appear in exactly one .cpp file in the whole project.
 // Windows: miniaudio sets up COM on the thread that creates the engine. By default that is
 // "multithreaded", which clashes with the Slint window (it needs "single threaded", 2) and
@@ -222,4 +222,4 @@ bool MiniaudioBackend::is_playing()
 std::string MiniaudioBackend::last_error()
 {
     return errorText;
-}
+}

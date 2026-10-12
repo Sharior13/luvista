@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <random>
 #include <string>
 #include <vector>
@@ -8,6 +8,7 @@
 #include "recentlist.h"
 #include "playlist.h"
 #include "playcounts.h"
+#include "PlayQueue.h"
 
 class PlayerController {
 private:
@@ -28,14 +29,20 @@ private:
     // The queue. It holds song ids, so it survives the library changing under it.
     std::vector<int> baseQueue;     // the songs in the order of the list they came from
     std::vector<int> order;         // the same songs in the order they will play (shuffled if shuffle is on)
-    int pos;                        // place of the playing song in `order`, -1 = none
+    int pos;                        // place in `order` of the last song that came from the queue, -1 = none
+    int anchorId;                   // the id of that song: where the queue carries on after a "play next" song
     std::string queueName;          // "All Songs", "Favorites", a playlist name ...
     bool shuffleOn;
-    bool repeatOne;
+    int repeat;                     // 0 = off, 1 = the queue starts again at its end, 2 = the song plays again
+    bool autoplayOn;                // off + queue over: keep going with the whole library
     bool counted;                   // this play was already added to the play counts
+    bool playingFile;               // a loose file (a recording) plays, not a song of the library
+    PlayQueue userQueue;            // "Add to queue": these songs play before the rest of the queue
     std::mt19937 rng;
 
     void playAt(int place, int step);                                   // plays order[place]. Skips songs that will not open
+    bool playId(int id);                                                // plays a song without touching the place in the queue
+    void advance(bool byItself);                                        // next song. byItself = the song just ended
     void setQueue(const std::vector<int>& songNumbers, const std::string& name, int startId);
     void shuffleOrder(int firstId);                                     // shuffles `order`, with firstId (if any) kept at the front
     void ensureQueue();                                                 // no queue yet: use the whole library
@@ -55,16 +62,23 @@ public:
     // (0 = first), `name` is shown above the queue ("Favorites"). The rest of the list becomes the queue.
     void playQueue(const std::vector<int>& songNumbers, int row, const std::string& name);
     void playQueueShuffled(const std::vector<int>& songNumbers, const std::string& name);   // shuffle on, random first song
-    void playQueueRow(int row);         // a row of the queue panel (0 = first)
+    bool playFilePath(const std::string& path, const std::string& title);   // plays a loose file (a recording). false if it will not open
 
     void setShuffle(bool on);           // reorders the queue, the playing song stays where it is
     bool isShuffle() const;
-    void setRepeat(bool on);            // true = the song plays again when it ends (it does not loop on "next")
-    bool isRepeat() const;
+    void toggleShuffle();
+    void setRepeatMode(int mode);       // 0 = off, 1 = all (the queue starts again), 2 = one (the song plays again)
+    int repeatMode() const;
+    void toggleRepeat();                // off -> all -> one -> off
+    void setAutoplay(bool on);          // when the queue is over (repeat off): go on with the whole library
+    bool isAutoplay() const;
 
-    int queueCount() const;             // songs in the queue, in play order, the playing one included
-    int queueSongNumber(int row) const; // song number of a queue row (0 if that song is gone)
-    int queuePosition() const;          // row of the playing song, -1 if nothing is playing
+    // What plays next: the songs added with "Add to queue" first, then the rest of the queue. At most `most` song numbers.
+    std::vector<int> upcoming(int most) const;
+    void playUpcoming(int songNumber);  // plays a song of upcoming() right now
+    void addToQueue(int songNumber);    // "Add to queue"
+    void removeFromQueue(int songNumber);
+    bool isQueued(int songNumber) const;
     std::string queueContext() const;   // where the queue came from, "" if there is no queue
 
     std::vector<int> mostPlayedSongNumbers(int most) const;   // the most played songs, top first
@@ -86,6 +100,8 @@ public:
 
     void toggleFavorite();
     bool isFavorite() const;
+    bool isFavoriteSong(int songNumber) const;
+    void toggleFavoriteSong(int songNumber);   // the heart on a row
     int favoriteCount() const;
     std::string favorite(int n) const;
     std::string favoriteTitle(int n) const;
@@ -95,6 +111,11 @@ public:
     std::string recentTitle(int n) const;
 
     bool createPlaylist(const std::string& name);
+    bool renamePlaylist(const std::string& oldName, const std::string& newName);
+    std::string freePlaylistName(const std::string& base) const;
+    std::vector<std::string> playlistsWithSong(int songNumber) const;   // the playlists that hold this song
+    int playlistRowOf(const std::string& name, int songNumber) const;   // its row in the playlist (first is 1), 0 if it is not in it
+    int playCount(int songNumber) const;
     int playlistCount() const;
     std::string playlistName(int n) const;
     bool addCurrentToPlaylist(const std::string& name);
@@ -134,6 +155,7 @@ public:
     int recentSongNumber(int row) const;
     int playlistSongNumber(const std::string& name, int row) const;
 
-    std::string nextSongTitle() const;          // NEW: "Next in queue" card
-    long long songAdded(int n) const;           // NEW: "Date added" column
-};
+    std::string nextSongTitle() const;          // "Next in queue" card
+    long long songAdded(int n) const;           // "Date added" column
+    bool hasSong() const;                       // something is loaded: a song or a recording
+};

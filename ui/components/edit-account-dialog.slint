@@ -1,0 +1,109 @@
+﻿import { Theme } from "../theme.slint";
+import { DialogFrame, DialogButton, ButtonKind } from "dialog-frame.slint";
+import { TextBox } from "text-box.slint";
+
+//Settings > Account > Edit. Change the name or email, the picture, or the password (needs the current one).
+export component EditAccountDialog inherits DialogFrame {
+    in property <image> picture;                //current picture, empty = gradient with the first letter
+    in property <string> initial;               //first letter of the name
+    in property <string> error;
+    in-out property <string> username;
+    in-out property <string> email;
+    in-out property <string> current-password;
+    in-out property <string> new-password;
+    callback saved(string, string, string, string);     //username, email, current password, new password ("" = keep)
+    callback picture-clicked();
+
+    title: "Edit account";
+    card-width: 440px;
+
+    //picture
+    Rectangle {
+        height: 84px;
+
+        Rectangle {
+            x: 0px;
+            width: 72px;
+            height: 72px;
+            y: 6px;
+            border-radius: self.width / 2;
+            clip: true;
+            background: @linear-gradient(135deg, Theme.cover-start 0%, Theme.cover-end 100%);
+
+            Text {
+                width: 100%;
+                height: 100%;
+                text: root.initial;
+                color: Theme.text-primary;
+                font-size: 30px;
+                font-weight: 800;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                visible: root.picture.width == 0;
+            }
+            Image {
+                source: root.picture;
+                width: 100%;
+                height: 100%;
+                image-fit: cover;
+            }
+        }
+
+        DialogButton {
+            x: 92px;
+            y: 22px;
+            width: 180px;
+            label: "Change picture";
+            icon: @image-url("../icons/camera.svg");
+            kind: ButtonKind.secondary;
+            clicked => { root.picture-clicked(); }
+        }
+    }
+
+    TextBox {
+        label: "Username";
+        text <=> root.username;
+        invalid: root.username == "";
+        autofocus: true;
+    }
+    TextBox {
+        label: "Email";
+        text <=> root.email;
+    }
+    TextBox {
+        label: "Current password (only to change it)";
+        password: true;
+        text <=> root.current-password;
+    }
+    TextBox {
+        label: "New password";
+        placeholder: "Leave empty to keep it";
+        password: true;
+        text <=> root.new-password;
+    }
+
+    if root.error != "" : Text {
+        text: root.error;
+        color: Theme.danger;
+        font-size: 13px;
+        font-weight: 700;
+        wrap: word-wrap;
+    }
+
+    HorizontalLayout {
+        spacing: 12px;
+        alignment: end;
+        padding-top: 4px;
+
+        DialogButton {
+            label: "Cancel";
+            kind: ButtonKind.secondary;
+            clicked => { root.closed(); }
+        }
+        DialogButton {
+            label: "Save";
+            enabled: root.username != "" && (root.new-password == "" || root.current-password != "");
+            clicked => { root.saved(root.username, root.email, root.current-password, root.new-password); }
+        }
+    }
+}

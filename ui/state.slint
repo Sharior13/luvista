@@ -1,13 +1,27 @@
-import { MockData } from "mock-data.slint";
+﻿import { MockData } from "mock-data.slint";
 import { TrackInfo } from "components/track-card.slint";
 import { PlaylistInfo } from "components/playlist-item.slint";
 import { NavSection } from "components/side-nav.slint";
 import { SongInfo } from "components/song-row.slint";
 import { PlaylistChoice } from "components/add-to-playlist.slint";
 import { LyricLine } from "components/lyrics-panel.slint";
+import { ArtistInfo } from "components/artist-tile.slint";
+import { RecordState } from "components/recorder-dialog.slint";
 
 //re-exported so app.slint can hand them to the C++ side
-export { TrackInfo, PlaylistInfo, NavSection, SongInfo, PlaylistChoice, LyricLine }
+export { TrackInfo, PlaylistInfo, NavSection, SongInfo, PlaylistChoice, LyricLine, ArtistInfo, RecordState }
+
+//the window in front of the page, if any. Only one at a time.
+export enum DialogKind {
+    none,
+    new-playlist,       //asks for a name, then create-playlist
+    rename-playlist,    //asks for a name, then rename-playlist
+    delete-playlist,    //are you sure, then delete-playlist
+    pick-playlist,      //"Add to playlist" for a song of a "..." menu
+    delete-song,        //are you sure, then delete-song
+    recorder,           //Start Recording
+    edit-account,       //Settings > Account > Edit
+}
 
 //AppState is the single connection point between the UI and the C++ backend.
 //no other .slint file needs to be touched to connect the backend.
@@ -24,8 +38,8 @@ export global AppState {
     in-out property <float> position: MockData.enabled ? MockData.position : 0;   //seconds
     in-out property <float> duration: MockData.enabled ? MockData.now-duration : 0;   //seconds
     in-out property <bool> playing: false;
-    in-out property <bool> shuffle: false;
-    in-out property <bool> repeat: false;
+    in-out property <bool> shuffle: false;              //set by the backend
+    in-out property <int> repeat-mode: 0;               //set by the backend: 0 = off, 1 = repeat all, 2 = repeat one
     in-out property <float> volume: 1.0;                //0..1
     in-out property <bool> lyrics-open: false;
     in-out property <bool> queue-open: false;
@@ -72,15 +86,51 @@ export global AppState {
     in-out property <[SongInfo]> playlist-songs: MockData.enabled && MockData.library-feed ? MockData.playlist-songs : [];   //songs of playlists[selected-playlist]
     in-out property <float> playlist-seconds: MockData.enabled && MockData.library-feed ? MockData.playlist-seconds : 0;
 
+    //profile and settings pages
+    in-out property <string> profile-name: MockData.enabled ? MockData.profile-name : "";
+    in-out property <string> account-email;
+    in-out property <[ArtistInfo]> top-artists: MockData.enabled ? MockData.top-artists : [];   //most played artists first
+    in-out property <string> storage-text;            //"3 folders, 128 songs"
+    in-out property <[string]> languages: ["English"];
+    in-out property <int> language-index: 0;
+    in-out property <[string]> themes: ["Default"];
+    in-out property <int> theme-index: 0;
+    in-out property <bool> autoplay: false;
+
+    //artist page: filled by the backend when artist-clicked fires
+    in-out property <string> artist-name;
+    in-out property <image> artist-art;               //empty = gradient banner
+    in-out property <[SongInfo]> artist-songs: MockData.enabled && MockData.library-feed ? MockData.songs : [];
+    in-out property <float> artist-seconds: MockData.enabled && MockData.library-feed ? MockData.songs-seconds : 0;
+
+    //windows in front of the page (see DialogKind)
+    in-out property <DialogKind> dialog: DialogKind.none;
+    in-out property <string> dialog-text;             //text in the name box of the new / rename playlist window
+    in-out property <string> dialog-error;            //red text in the open window, set by the backend when a callback says no (e.g. "That name is already used")
+    in-out property <string> create-with: "";         //what a new playlist starts with: "" = nothing, "current" = the playing song, "song" = pending-list / pending-row
+    in-out property <string> pending-list;            //song a menu action is about: the list ("songs", "favorites", "recordings", "playlist", "artist") and the row in it
+    in-out property <int> pending-row;
+    in-out property <string> pending-title;           //its title, for the windows
+    in-out property <int> pending-playlist;           //playlist rename / delete is about, index into playlists
+    in-out property <[PlaylistChoice]> song-playlist-choices;   //rows of the "Add to playlist" window for pending-list / pending-row
+
+    //recorder window
+    in-out property <RecordState> record-state: RecordState.idle;
+    in-out property <float> record-seconds;           //length so far, the backend updates it while recording
+    in-out property <float> record-level;             //0..1 loudness for the meter, the backend updates it while recording
+    in-out property <string> record-error;            //"No microphone found" and the like
+    in-out property <string> record-saved-name;       //file name shown once saved
+
     // player actions 
-    //playing / shuffle / repeat / volume are already updated when these fire, read them with get_xxx()
+    //playing / volume are already updated when these fire, read them with get_xxx().
+    //shuffle and repeat are not: the buttons only ask, the backend flips its mode and sets shuffle / repeat-mode
     callback toggle-play();
     callback previous();
     callback next();
     callback seek(float);                //seconds
     callback volume-changed(float);      //0..1
-    callback shuffle-toggled(bool);
-    callback repeat-toggled(bool);
+    callback shuffle-clicked();
+    callback repeat-clicked();
     callback lyrics-toggled(bool);
     callback queue-toggled(bool);
     callback queue-track-clicked(int);   //a track under "Next from" in the queue panel, index into queue-tracks
@@ -89,7 +139,6 @@ export global AppState {
     callback favorite-toggled(bool);     //"Add to Favorites" in the popup, true = now a favorite
     callback playlist-toggled(int);      //a playlist row in the popup, index into playlist-choices. Add/remove the track, then flip checked
     callback playlist-picker-search(string);   //"Find a playlist" box in the popup, filter playlist-choices and set them again
-    callback new-playlist-from-track();  //"New playlist" in the popup: create one containing the playing track
 
     //top bar actions
     callback search-changed(string);     //on every keystroke
@@ -99,7 +148,6 @@ export global AppState {
     //library and navigation actions
     callback section-changed(NavSection);
     callback playlist-clicked(int);      //index into playlists
-    callback add-playlist();
     callback track-clicked(TrackInfo);   //a card on the home page
     callback show-all(string);           //"recent", "most-played" or "recently-added"
 
@@ -110,11 +158,57 @@ export global AppState {
     callback shuffle-list(string);
     callback list-search-changed(string, string);   //list, text. Filter the list and set it again
     callback list-sort-changed(string, int);     //list, index in the sort menu (0 = recently added, 1 = title, 2 = artist, 3 = length)
-    callback start-recording();
     callback edit-playlist-art(int);             //click on the open playlist's art, index into playlists
-    callback add-folder();                       //"add a new folder" in the empty Songs page
+    callback add-folder();                       //"add a new folder" in the empty Songs page, and "Add folder" in settings
+
+    //song "..." menus. list is "songs", "favorites", "recordings", "playlist" or "artist", row is the row as shown right now
+    //action is "play", "queue-add", "queue-remove", "favorite", "show-file" or "remove-from-playlist".
+    //"add-playlist", "delete" and "view-artist" are handled by the screen first, see below
+    callback song-menu-action(string, int, string);
+    callback song-playlists-requested(string, int);     //"Add to playlist" opened: fill song-playlist-choices for this song
+    callback song-playlist-toggled(int);                //row of song-playlist-choices: add or remove the song, then flip checked
+    callback song-playlist-search(string);              //"Find a playlist" box of that window
+    callback delete-song(string, int);                  //confirmed: remove the song from the library (recordings: delete the file too)
+
+    //playlists: the + in the sidebar and the player bar's "New playlist" ask for a name first
+    callback create-playlist(string, string) -> bool;   //name, create-with. true = created, the window closes. false = keep it open and set dialog-error
+    callback rename-playlist(int, string) -> bool;      //index into playlists, new name. same true / false
+    callback delete-playlist(int);                      //confirmed, index into playlists
+
+    //artist page
+    callback artist-clicked(string);                    //name: fill artist-songs / artist-seconds / artist-art. The screen already switched to the artist page
+
+    //recorder window
+    callback begin-recording(string);                   //Start: the name typed, "" = pick one. Set record-state to recording, or record-error
+    callback stop-recording();                          //Stop and save: set record-state to saved and record-saved-name
+    callback cancel-recording();                        //Discard: delete the file, set record-state to idle
+
+    //profile and settings
+    callback change-profile-picture();                  //the backend opens a file picker and sets profile-picture
+    callback account-saved(string, string, string, string) -> bool;   //username, email, current password, new password. true = saved, the window closes
+    callback language-changed(int);
+    callback theme-changed(int);
+    callback autoplay-toggled(bool);
 
     //mock behaviour, replaced when the backend registers its own handler
+    shuffle-clicked => { if (MockData.enabled) { shuffle = !shuffle; } }
+    repeat-clicked => { if (MockData.enabled) { repeat-mode = Math.mod(repeat-mode + 1, 3); } }
+    create-playlist(name, with) => { return true; }
+    rename-playlist(i, name) => { return true; }
+    account-saved(user, email, current, new-password) => { return true; }
+    begin-recording(name) => {
+        if (MockData.enabled) {
+            record-seconds = 0;
+            record-state = RecordState.recording;
+        }
+    }
+    stop-recording => {
+        if (MockData.enabled) {
+            record-saved-name = "rec_1.mp3";
+            record-state = RecordState.saved;
+        }
+    }
+    cancel-recording => { record-state = RecordState.idle; }
     next => { if (MockData.enabled) { MockData.next(); } }
     playlist-toggled(i) => {
         if (MockData.enabled) {

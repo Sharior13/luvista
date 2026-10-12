@@ -1,5 +1,7 @@
-#include "profiles.h"
+﻿#include "profiles.h"
 #include "appPaths.h"
+#include "credentials.h"
+#include <fstream>
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
@@ -192,4 +194,254 @@ std::string Profiles::initial(const std::string& name)
         letter[0] = (char)std::toupper(first);
 
     return letter;
+}
+
+
+// ---- accounts -------------------------------------------------------------------------------------
+// <profile folder>/account.dat holds lines like "email=a@b.c", "password=pbkdf2$...", "remember=0"
+
+namespace {
+
+struct Account {
+    std::string email;
+    std::string password;       // the fingerprint, never the password itself
+    bool remember = true;       // a profile without account.dat is shown on the login screen
+};
+
+fs::path accountFile(const std::string& profile)
+{
+    return fs::path(AppPaths::profileFolder(profile)) / "account.dat";
+}
+
+Account readAccount(const std::string& profile)
+{
+    Account account;
+    std::ifstream in(accountFile(profile));
+    std::string line;
+
+    while (std::getline(in, line)) {
+        size_t eq = line.find('=');
+
+        if (eq == std::string::npos)
+            continue;
+
+        std::string key = line.substr(0, eq);
+        std::string value = line.substr(eq + 1);
+
+        if (key == "email") account.email = value;
+        else if (key == "password") account.password = value;
+        else if (key == "remember") account.remember = (value != "0");
+    }
+
+    return account;
+}
+
+bool writeAccount(const std::string& profile, const Account& account)
+{
+    std::ofstream out(accountFile(profile), std::ios::trunc);
+
+    out << "email=" << account.email << "\n";
+    out << "password=" << account.password << "\n";
+    out << "remember=" << (account.remember ? "1" : "0") << "\n";
+    return (bool)out;
+}
+
+std::string trimmed(const std::string& text)
+{
+    size_t a = text.find_first_not_of(" \t");
+
+    if (a == std::string::npos)
+        return "";
+
+    return text.substr(a, text.find_last_not_of(" \t") - a + 1);
+}
+
+bool emailLooksOk(const std::string& email)
+{
+    size_t at = email.find('@');
+
+    if (at == std::string::npos || at == 0 || email.find('@', at + 1) != std::string::npos)
+        return false;
+
+    size_t dot = email.find('.', at);
+
+    return dot != std::string::npos && dot > at + 1 && dot + 1 < email.size()
+        && email.find(' ') == std::string::npos;
+}
+
+}   // namespace
+
+
+std::vector<std::string> Profiles::shown() const
+{
+    std::vector<std::string> names;
+
+    for (const std::string& name : list()) {
+        if (readAccount(name).remember)
+            names.push_back(name);
+    }
+
+    return names;
+}
+
+
+std::string Profiles::email(const std::string& name) const
+{
+    std::string actual = find(name);
+
+    return actual == "" ? "" : readAccount(actual).email;
+}
+
+
+bool Profiles::hasPassword(const std::string& name) const
+{
+    std::string actual = find(name);
+
+    return actual != "" && !readAccount(actual).password.empty();
+}
+
+
+// Who owns this email? ("" = nobody). `except` is a profile that does not count (the one being edited).
+static std::string ownerOfEmail(const Profiles& profiles, const std::string& email, const std::string& except)
+{
+    for (const std::string& name : profiles.list()) {
+        if (name != except && !email.empty() && lowerCase(profiles.email(name)) == lowerCase(email))
+            return name;
+    }
+
+    return "";
+}
+
+
+bool Profiles::createAccount(const std::string& rawName, const std::string& rawEmail, const std::string& password,
+                             bool remember, std::string& error)
+{
+    std::string name = trimmed(rawName);
+    std::string email = trimmed(rawEmail);
+
+    if (!nameIsOk(name)) {
+        error = "That username cannot be used";
+        return false;
+    }
+    if (exists(name)) {
+        error = "That username is already used";
+        return false;
+    }
+    if (!emailLooksOk(email)) {
+        error = "That email address does not look right";
+        return false;
+    }
+    if (ownerOfEmail(*this, email, "") != "") {
+        error = "That email is already used";
+        return false;
+    }
+    if (password.size() < 4) {
+        error = "The password needs at least 4 characters";
+        return false;
+    }
+
+    if (!create(name)) {
+        error = "The profile could not be made";
+        return false;
+    }
+
+    Account account;
+    account.email = email;
+    account.password = Credentials::makeFingerprint(password);
+    account.remember = remember;
+
+    if (!writeAccount(find(name), account)) {
+        error = "The profile could not be saved";
+        return false;
+    }
+
+    return true;
+}
+
+
+std::string Profiles::signIn(const std::string& userOrEmail, const std::string& password, std::string& error) const
+{
+    std::string who = trimmed(userOrEmail);
+    std::string name = find(who);
+
+    if (name == "")
+        name = ownerOfEmail(*this, who, "");
+
+    Account account = name == "" ? Account() : readAccount(name);
+
+    // the same sentence for "no such profile" and "wrong password", so nobody can find out which names exist
+    if (name == "" || account.password.empty() || !Credentials::matches(password, account.password)) {
+        error = "Wrong username or password";
+        return "";
+    }
+
+    return name;
+}
+
+
+bool Profiles::updateAccount(std::string& name, const std::string& rawNewName, const std::string& rawEmail,
+                             const std::string& currentPassword, const std::string& newPassword, std::string& error)
+{
+    std::string oldName = find(name);
+
+    if (oldName == "") {
+        error = "This profile cannot be edited";
+        return false;
+    }
+
+    std::string newName = trimmed(rawNewName);
+    std::string email = trimmed(rawEmail);
+    Account account = readAccount(oldName);
+
+    if (!nameIsOk(newName)) {
+        error = "That username cannot be used";
+        return false;
+    }
+    if (lowerCase(newName) != lowerCase(oldName) && exists(newName)) {
+        error = "That username is already used";
+        return false;
+    }
+    if (!email.empty() && !emailLooksOk(email)) {
+        error = "That email address does not look right";
+        return false;
+    }
+    if (ownerOfEmail(*this, email, oldName) != "") {
+        error = "That email is already used";
+        return false;
+    }
+
+    if (!newPassword.empty()) {
+        if (!account.password.empty() && !Credentials::matches(currentPassword, account.password)) {
+            error = "The current password is wrong";
+            return false;
+        }
+        if (newPassword.size() < 4) {
+            error = "The password needs at least 4 characters";
+            return false;
+        }
+        account.password = Credentials::makeFingerprint(newPassword);
+    }
+
+    account.email = email;
+
+    if (newName != oldName) {                               // the folder carries the name
+        std::error_code problem;
+        fs::path from = AppPaths::profileFolder(oldName);
+        fs::path to = fs::path(AppPaths::profilesFolder()) / newName;
+
+        fs::rename(from, to, problem);
+
+        if (problem) {
+            error = "The username could not be changed";
+            return false;
+        }
+    }
+
+    if (!writeAccount(newName, account)) {
+        error = "The changes could not be saved";
+        return false;
+    }
+
+    name = newName;
+    return true;
 }

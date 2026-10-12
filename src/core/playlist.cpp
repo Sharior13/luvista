@@ -1,4 +1,4 @@
-#include "playlist.h"
+﻿#include "playlist.h"
 #include "appPaths.h"
 #include <fstream>
 #include <string>
@@ -22,6 +22,14 @@ static std::string fileFor(const std::string& name) {
 // The picture file of a playlist
 static fs::path artFor(const std::string& name, const std::string& ending) {
     return fs::path(AppPaths::activeFolder()) / ("playlist-" + name + ".art" + ending);
+}
+
+// Spaces off both ends, so "  Gym " and "Gym" are the same playlist
+static std::string trimmed(const std::string& name) {
+    size_t a = name.find_first_not_of(" \t");
+    if (a == std::string::npos)
+        return "";
+    return name.substr(a, name.find_last_not_of(" \t") - a + 1);
 }
 
 // Validate name
@@ -51,7 +59,9 @@ bool Playlists::exists(const std::string& name) const {
 }
 
 // Create playlist
-bool Playlists::create(const std::string& name) {
+bool Playlists::create(const std::string& rawName) {
+    std::string name = trimmed(rawName);
+
     if (!nameIsOk(name) || exists(name))
         return false;
 
@@ -60,6 +70,53 @@ bool Playlists::create(const std::string& name) {
 
     std::ofstream songs(fileFor(name));               // make its empty notebook
     return true;
+}
+
+// Gives a playlist a new name: the name in the list changes and its song file and picture move to the new name.
+bool Playlists::rename(const std::string& oldName, const std::string& rawNewName) {
+    std::string newName = trimmed(rawNewName);
+
+    if (oldName == newName)
+        return exists(oldName);
+
+    if (!exists(oldName) || !nameIsOk(newName) || exists(newName))
+        return false;
+
+    std::error_code problem;
+    fs::rename(fileFor(oldName), fileFor(newName), problem);
+    if (problem)
+        return false;
+
+    for (const char* ending : { ".png", ".jpg" }) {
+        std::error_code ignored;
+        if (fs::is_regular_file(artFor(oldName, ending), ignored))
+            fs::rename(artFor(oldName, ending), artFor(newName, ending), ignored);
+    }
+
+    std::ifstream in(namesFile());
+    std::string kept = "";
+    std::string line;
+
+    while (std::getline(in, line))
+        kept += (line == oldName ? newName : line) + "\n";   // same place in the list, new name
+    in.close();
+
+    std::ofstream out(namesFile());
+    out << kept;
+    return true;
+}
+
+// A name nobody uses yet: "New playlist", then "New playlist 2", "New playlist 3", ...
+std::string Playlists::freeName(const std::string& base) const {
+    if (!exists(base))
+        return base;
+
+    for (int i = 2; ; i++) {
+        std::string candidate = base + " " + std::to_string(i);
+
+        if (!exists(candidate))
+            return candidate;
+    }
 }
 
 // Deletes the playlist: takes its name out of the list and erases its song file.

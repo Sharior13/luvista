@@ -1,4 +1,4 @@
-import { Theme } from "../theme.slint";
+﻿import { Theme } from "../theme.slint";
 
 //the "# Title Album Date added Length" line above a song list.
 //it uses the same column widths as SongRow so everything lines up.
@@ -6,6 +6,7 @@ export component SongTableHeader inherits Rectangle {
     in property <bool> show-album: true;
     in property <bool> show-date: true;
     in property <string> length-label: "Length";
+    in property <bool> show-more: true;       //room for the "..." column of SongRow
 
     height: 40px;
 
@@ -80,6 +81,11 @@ export component SongTableHeader inherits Rectangle {
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
+        }
+
+        //same width as the "..." button of a row
+        Rectangle {
+            width: root.show-more ? Theme.col-more : 0px;
         }
     }
 }

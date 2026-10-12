@@ -1,15 +1,20 @@
-import { MockData } from "mock-data.slint";
+﻿import { MockData } from "mock-data.slint";
 import { ProfileInfo } from "components/login-card.slint";
 
 //login/session state
 export global Session {
     in-out property <bool> logged-in;
-    in property <bool> busy;
-    in property <string> error;
+    in-out property <bool> busy;                //the backend is checking the password, the Sign In button waits
+    in-out property <string> error;             //shown under the form, e.g. "Wrong username or password"
+    in-out property <bool> remember: true;      //"Remember me" on the create profile screen
+    in-out property <image> new-picture;        //picture chosen on the last step of create profile, empty = gradient
     in-out property <[ProfileInfo]> profiles: MockData.enabled ? MockData.profiles : [];
 
 	//functions to connect with cpp
-    callback login(string, string);
+    callback login(string, string);                       //username or email, password. On success the backend sets logged-in, on failure error
+    callback create-profile(string, string, string) -> bool;   //username, email, password. true = created, the screen goes on to the picture step
+    callback pick-picture();                              //"Choose picture" on the last step, the backend opens a file picker and sets new-picture
+    callback finish-profile();                            //"Finish" on the last step: log in as the new profile
     callback logout();
     callback select-profile(int);        //index into profiles
     callback add-profile();              //the "Add Profile" card
@@ -19,4 +24,7 @@ export global Session {
     select-profile(i) => { if (MockData.enabled) { logged-in = true; } }
     continue-as-guest => { if (MockData.enabled) { logged-in = true; } }
     logout => { if (MockData.enabled) { logged-in = false; } }
+    login(user, password) => { if (MockData.enabled) { logged-in = true; } }
+    create-profile(user, email, password) => { return MockData.enabled; }
+    finish-profile => { if (MockData.enabled) { logged-in = true; } }
 }

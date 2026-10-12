@@ -1,0 +1,49 @@
+﻿import { Theme } from "../theme.slint";
+
+//small pink pill with a label and an optional icon (the "Edit" button on the settings page)
+export component PillButton inherits Rectangle {
+    in property <string> label;
+    in property <image> icon;
+    in property <brush> fill: #ff5fa8;
+    callback clicked();
+
+    height: 32px;
+    width: pill.preferred-width;
+    border-radius: self.height / 2;
+    background: root.fill;
+
+    Rectangle {
+        border-radius: parent.border-radius;
+        background: touch.has-hover ? #ffffff30 : transparent;
+        animate background { duration: Theme.anim-fast; }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.clicked(); }
+    }
+
+    pill := HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 12px;
+        spacing: 6px;
+
+        Text {
+            text: root.label;
+            color: Theme.text-primary;
+            font-size: 13px;
+            font-weight: 800;
+            vertical-alignment: center;
+        }
+        if root.icon.width > 0 : Rectangle {
+            width: 16px;
+            Image {
+                source: root.icon;
+                colorize: Theme.text-primary;
+                width: 16px;
+                height: 16px;
+                y: (parent.height - self.height) / 2;
+            }
+        }
+    }
+}

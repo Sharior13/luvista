@@ -1,0 +1,36 @@
+﻿import { Theme } from "../theme.slint";
+import { DialogFrame, DialogButton, ButtonKind } from "dialog-frame.slint";
+
+//"Are you sure?" box for deleting a playlist or removing a song
+export component ConfirmDialog inherits DialogFrame {
+    in property <string> message;
+    in property <string> confirm-label: "Delete";
+    in property <bool> danger: true;
+    callback confirmed();
+
+    card-width: 400px;
+
+    Text {
+        text: root.message;
+        color: Theme.text-primary;
+        font-size: 15px;
+        wrap: word-wrap;
+    }
+
+    HorizontalLayout {
+        spacing: 12px;
+        alignment: end;
+        padding-top: 4px;
+
+        DialogButton {
+            label: "Cancel";
+            kind: ButtonKind.secondary;
+            clicked => { root.closed(); }
+        }
+        DialogButton {
+            label: root.confirm-label;
+            kind: root.danger ? ButtonKind.danger : ButtonKind.primary;
+            clicked => { root.confirmed(); }
+        }
+    }
+}

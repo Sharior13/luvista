@@ -1,4 +1,4 @@
-#include "CoverArt.h"
+﻿#include "CoverArt.h"
 #include "../core/appPaths.h"
 #include <cctype>
 #include <cstdint>

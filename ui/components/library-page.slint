@@ -1,10 +1,11 @@
-import { Theme } from "../theme.slint";
+﻿import { Theme } from "../theme.slint";
 import { PageScroll } from "page-scroll.slint";
 import { CoverArt } from "cover-art.slint";
 import { SearchField } from "search-field.slint";
 import { SongInfo, SongRow } from "song-row.slint";
 import { SongTableHeader } from "song-table-header.slint";
 import { SortMenu } from "sort-menu.slint";
+import { MenuPanel, MenuRow, MenuDivider } from "menu.slint";
 
 //shared layout of the Songs, Favorites, Recordings and Playlist pages
 export component LibraryPage inherits Rectangle {
@@ -12,6 +13,9 @@ export component LibraryPage inherits Rectangle {
     in property <string> page-title;
     in property <string> name;
     in property <string> subtitle;
+    in property <bool> banner: false;             //artist style: one tall banner with the name on it, instead of the title + band
+    in property <image> banner-art;               //picture on the banner, empty = gradient
+    in property <bool> show-rename: false;        //pencil next to the name (playlists)
     in property <image> header-art;               //empty = gradient
     in property <image> header-icon;              //white icon drawn on the gradient
     in property <bool> header-show-icon: true;
@@ -35,6 +39,8 @@ export component LibraryPage inherits Rectangle {
     in property <bool> row-show-icon: false;
     in property <string> empty-text;
     in property <string> empty-link;              //underlined and clickable, right after empty-text
+    in property <string> list-id: "songs";        //page name handed to the row menus: songs, favorites, recordings, playlist, artist
+    in property <bool> show-list-menu: false;     //"..." next to shuffle with rename / cover / delete (playlists)
 
     callback song-clicked(int);
     callback play-clicked();
@@ -43,7 +49,10 @@ export component LibraryPage inherits Rectangle {
     callback search-edited(string);
     callback sort-changed(int);
     callback empty-link-clicked();
-    callback header-clicked();                    //click on the header art (only when header-hover is on)
+    callback header-clicked();
+    callback rename-clicked();                    //the pencil next to the name
+    callback song-action(int, string);            //"..." menu of row i, see song-menu.slint
+    callback list-action(string);                 //"rename", "cover" or "delete" from the list "..." menu                    //click on the header art (only when header-hover is on)
 
     property <bool> compact: root.width < Theme.bp-date;
     property <length> pad: root.compact ? 20px : 36px;
@@ -58,8 +67,51 @@ export component LibraryPage inherits Rectangle {
         VerticalLayout {
             spacing: 0px;
 
+            //artist banner
+            if root.banner : Rectangle {
+                height: Theme.banner-height;
+                background: Theme.art-gradient;
+                clip: true;
+
+                Image {
+                    source: root.banner-art;
+                    width: parent.width;
+                    height: parent.height;
+                    image-fit: cover;
+                }
+                //darkens the bottom so the name stays readable on any picture
+                Rectangle {
+                    y: parent.height - 90px;
+                    height: 90px;
+                    background: @linear-gradient(180deg, #00000000 0%, #00000070 100%);
+                }
+                Text {
+                    x: root.pad;
+                    y: parent.height - 64px;
+                    width: parent.width - 2 * root.pad;
+                    height: 40px;
+                    text: root.name;
+                    color: Theme.text-primary;
+                    font-size: root.compact ? 28px : 36px;
+                    font-weight: 800;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                Text {
+                    x: root.pad;
+                    y: parent.height - 26px;
+                    width: parent.width - 2 * root.pad;
+                    height: 18px;
+                    text: root.subtitle;
+                    color: Theme.text-primary;
+                    font-size: 13px;
+                    font-weight: 700;
+                    overflow: elide;
+                }
+            }
+
             //page title
-            Rectangle {
+            if !root.banner : Rectangle {
                 height: root.compact ? 76px : 96px;
 
                 Text {
@@ -76,7 +128,7 @@ export component LibraryPage inherits Rectangle {
             }
 
             //band: cover, name, summary and search
-            Rectangle {
+            if !root.banner : Rectangle {
                 height: root.art-size + 24px;
                 background: Theme.header-band;
 
@@ -109,12 +161,38 @@ export component LibraryPage inherits Rectangle {
                     alignment: center;
                     spacing: 4px;
 
-                    Text {
-                        text: root.name;
-                        color: Theme.text-primary;
-                        font-size: root.compact ? 24px : 32px;
-                        font-weight: 800;
-                        overflow: elide;
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+
+                        Text {
+                            text: root.name;
+                            color: Theme.text-primary;
+                            font-size: root.compact ? 24px : 32px;
+                            font-weight: 800;
+                            overflow: elide;
+                        }
+
+                        //pencil: rename the playlist
+                        if root.show-rename : Rectangle {
+                            width: 34px;
+                            height: 34px;
+                            border-radius: self.width / 2;
+                            background: rename-touch.has-hover ? Theme.nav-hover : transparent;
+
+                            rename-touch := TouchArea {
+                                mouse-cursor: MouseCursor.pointer;
+                                clicked => { root.rename-clicked(); }
+                            }
+                            Image {
+                                source: @image-url("../icons/edit.svg");
+                                colorize: rename-touch.has-hover ? Theme.text-primary : Theme.control-muted;
+                                width: 18px;
+                                height: 18px;
+                                x: (parent.width - self.width) / 2;
+                                y: (parent.height - self.height) / 2;
+                            }
+                        }
                     }
                     Text {
                         text: root.subtitle;
@@ -232,6 +310,56 @@ export component LibraryPage inherits Rectangle {
                     }
                 }
 
+                //playlist "..." menu: rename, change cover, delete
+                if root.show-list-menu : Rectangle {
+                    x: root.pad + 48px + 12px + 44px + 4px;
+                    y: (parent.height - self.height) / 2;
+                    width: 44px;
+                    height: 44px;
+                    border-radius: self.width / 2;
+                    background: list-touch.has-hover ? Theme.nav-hover : transparent;
+
+                    list-touch := TouchArea {
+                        mouse-cursor: MouseCursor.pointer;
+                        clicked => { list-popup.show(); }
+                    }
+                    Image {
+                        source: @image-url("../icons/more.svg");
+                        colorize: list-touch.has-hover ? Theme.text-primary : Theme.control-muted;
+                        width: 28px;
+                        height: 28px;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                    }
+
+                    list-popup := PopupWindow {
+                        x: 0px;
+                        y: parent.height + 4px;
+                        width: 230px;
+                        height: 3 * Theme.menu-row-height + 12px;
+                        close-policy: PopupClosePolicy.close-on-click-outside;
+
+                        MenuPanel {
+                            MenuRow {
+                                icon: @image-url("../icons/edit.svg");
+                                label: "Rename playlist";
+                                clicked => { root.list-action("rename"); list-popup.close(); }
+                            }
+                            MenuRow {
+                                icon: @image-url("../icons/camera.svg");
+                                label: "Change cover";
+                                clicked => { root.list-action("cover"); list-popup.close(); }
+                            }
+                            MenuRow {
+                                icon: @image-url("../icons/trash.svg");
+                                label: "Delete playlist";
+                                danger: true;
+                                clicked => { root.list-action("delete"); list-popup.close(); }
+                            }
+                        }
+                    }
+                }
+
                 SortMenu {
                     x: parent.width - self.width - root.pad;
                     y: (parent.height - self.height) / 2;
@@ -301,7 +429,9 @@ export component LibraryPage inherits Rectangle {
                     show-icon: root.row-show-icon;
                     show-album: root.show-album;
                     show-date: root.show-date;
+                    context: root.list-id;
                     clicked => { root.song-clicked(i); }
+                    action(id) => { root.song-action(i, id); }
                 }
             }
 

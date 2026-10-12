@@ -1,0 +1,121 @@
+﻿import { Theme } from "../theme.slint";
+import { Viewport } from "../viewport.slint";
+import { MenuPanel, MenuRow, MenuDivider } from "menu.slint";
+
+//the "..." button at the end of every song row, and the popup it opens.
+//action says what was picked: "play", "queue-add", "queue-remove", "add-playlist", "favorite",
+//"view-artist", "show-file", "remove-from-playlist" or "delete".
+export component SongMenu inherits Rectangle {
+    in property <string> context: "songs";   //which page the row is on: songs, favorites, recordings, playlist or artist
+    in property <bool> favorite;             //the song is a favorite right now ("Remove from Favorites")
+    in property <bool> queued;               //the song is in the queue right now (enables "Remove from queue")
+    in property <bool> row-hover;            //the row is hovered, the dots get brighter
+    out property <bool> hovered: touch.has-hover;
+    callback action(string);
+
+    property <bool> is-recording: root.context == "recordings";
+    property <bool> in-playlist: root.context == "playlist";
+    property <bool> show-artist: root.context != "recordings" && root.context != "artist";
+    //rows in the menu, to size the popup
+    //a recording is not part of the library: it can only be played, shown in its folder or deleted
+    property <int> rows: root.is-recording ? 3 : 7 + (root.show-artist ? 1 : 0) + (root.in-playlist ? 1 : 0);
+    property <length> menu-height: root.rows * Theme.menu-row-height + (root.is-recording ? 2 : 4) * 9px + 12px;
+    property <bool> open-up: root.absolute-position.y + root.height + root.menu-height > Viewport.window-height - 8px;
+
+    width: Theme.col-more;
+
+    function act(id: string) {
+        root.action(id);
+        popup.close();
+    }
+
+    Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 32px;
+        height: 32px;
+        border-radius: self.width / 2;
+        background: touch.has-hover ? Theme.nav-hover : transparent;
+        animate background { duration: Theme.anim-fast; }
+
+        Image {
+            source: @image-url("../icons/more.svg");
+            colorize: touch.has-hover || root.row-hover ? Theme.text-primary : Theme.control-muted;
+            width: 22px;
+            height: 22px;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+        }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { popup.show(); }
+    }
+
+    popup := PopupWindow {
+        width: 240px;
+        height: root.menu-height;
+        x: root.width - self.width;
+        y: root.open-up ? -self.height : root.height;
+        close-policy: PopupClosePolicy.close-on-click-outside;
+
+        MenuPanel {
+            MenuRow {
+                icon: @image-url("../icons/play.svg");
+                label: "Play";
+                clicked => { root.act("play"); }
+            }
+            MenuDivider { }
+
+            if !root.is-recording : MenuRow {
+                icon: @image-url("../icons/queue-add.svg");
+                label: "Add to queue";
+                clicked => { root.act("queue-add"); }
+            }
+            if !root.is-recording : MenuRow {
+                icon: @image-url("../icons/queue-remove.svg");
+                label: "Remove from queue";
+                disabled: !root.queued;
+                clicked => { root.act("queue-remove"); }
+            }
+            if !root.is-recording : MenuDivider { }
+
+            if !root.is-recording : MenuRow {
+                icon: @image-url("../icons/playlist-add.svg");
+                label: "Add to playlist";
+                clicked => { root.act("add-playlist"); }
+            }
+            if !root.is-recording : MenuRow {
+                icon: root.favorite ? @image-url("../icons/heart.svg") : @image-url("../icons/heart-outline.svg");
+                label: root.favorite ? "Remove from Favorites" : "Add to Favorites";
+                clicked => { root.act("favorite"); }
+            }
+            if !root.is-recording : MenuDivider { }
+
+            if root.show-artist : MenuRow {
+                icon: @image-url("../icons/artist.svg");
+                label: "View artist";
+                clicked => { root.act("view-artist"); }
+            }
+            MenuRow {
+                icon: @image-url("../icons/folder.svg");
+                label: "Show in file";
+                clicked => { root.act("show-file"); }
+            }
+            MenuDivider { }
+
+            if root.in-playlist : MenuRow {
+                icon: @image-url("../icons/close.svg");
+                label: "Remove from this playlist";
+                clicked => { root.act("remove-from-playlist"); }
+            }
+            MenuRow {
+                icon: @image-url("../icons/trash.svg");
+                label: root.is-recording ? "Delete recording" : "Remove from library";
+                danger: true;
+                clicked => { root.act("delete"); }
+            }
+        }
+    }
+}
