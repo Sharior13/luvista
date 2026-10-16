@@ -2,6 +2,8 @@
 #include "../core/appPaths.h"
 #include <cctype>
 #include <cstdint>
+#include <cstdio>
+#include <map>
 #include <filesystem>
 #include <fstream>
 #include <system_error>
@@ -316,14 +318,70 @@ static std::string extractFromM4a(const std::string& songPath, const std::string
 }
 
 
+static bool isAudioFile(const fs::path& p)
+{
+    std::string ending = lowerCase(p.extension().string());
+
+    return ending == ".mp3" || ending == ".wav" || ending == ".flac" || ending == ".m4a" ||
+        ending == ".aac" || ending == ".aif" || ending == ".aiff";
+}
+
+
+// A folder picture (cover.jpg ...) belongs to ONE album, so it may only be used for a folder that is an
+// album folder. A folder that holds many loose songs (the Music folder itself, Downloads) is not one:
+// a stray folder.jpg there would otherwise be shown on every song in it.
+static bool isAlbumFolder(const fs::path& folder)
+{
+    static std::map<std::string, bool> known;
+    std::string key = folder.string();
+    auto found = known.find(key);
+
+    if (found != known.end())
+        return found->second;
+
+    std::error_code problem;
+    int songs = 0;
+
+    for (fs::directory_iterator it(folder, fs::directory_options::skip_permission_denied, problem);
+         !problem && it != fs::directory_iterator(); it.increment(problem)) {
+        std::error_code e;
+
+        if (it->is_regular_file(e) && isAudioFile(it->path()))
+            songs++;
+    }
+
+    bool result = songs > 0 && songs <= 40;
+    known[key] = result;
+    return result;
+}
+
+
+static std::string plainAddress(std::string text)
+{
+    for (char& c : text)
+        c = c == '\\' ? '/' : (char)std::tolower((unsigned char)c);
+
+    while (text.size() > 1 && text.back() == '/')
+        text.pop_back();
+
+    return text;
+}
+
+
 // a picture lying in the song's folder
-static std::string findInFolder(const std::string& songPath)
+static std::string findInFolder(const std::string& songPath, const std::string& libraryRoot)
 {
     const char* names[] = { "cover", "folder", "front", "album", "albumart" };
     const char* endings[] = { ".jpg", ".jpeg", ".png" };
 
     std::error_code problem;
     fs::path folder = fs::path(songPath).parent_path();
+
+    if (!libraryRoot.empty() && plainAddress(folder.string()) == plainAddress(libraryRoot))
+        return "";                                  // loose songs of the library folder itself
+
+    if (!isAlbumFolder(folder))
+        return "";
 
     for (const char* name : names) {
         for (const char* ending : endings) {
@@ -335,6 +393,30 @@ static std::string findInFolder(const std::string& songPath)
     }
 
     return "";
+}
+
+
+// The name a song's picture is kept under: made from the song's PATH (and size), never from a number.
+// Song numbers and ids can be handed out again after songs are removed, and a picture kept under such a
+// number then showed up on a different song.
+static std::string coverKey(const std::string& songPath)
+{
+    std::error_code problem;
+    unsigned long long hash = 1469598103934665603ULL;           // FNV-1a
+
+    for (unsigned char c : plainAddress(songPath)) {
+        hash ^= c;
+        hash *= 1099511628211ULL;
+    }
+
+    unsigned long long size = (unsigned long long)fs::file_size(songPath, problem);
+
+    if (problem)
+        size = 0;
+
+    char text[48];
+    std::snprintf(text, sizeof text, "c%016llx-%llx", hash, size);
+    return text;
 }
 
 
@@ -354,13 +436,13 @@ namespace CoverArt
     }
 
 
-    std::string forSong(int songId, const std::string& songPath)
+    std::string forSong(const std::string& songPath, const std::string& libraryRoot)
     {
-        if (songId <= 0)
+        if (songPath.empty())
             return "";
 
         std::error_code problem;
-        fs::path base = fs::path(AppPaths::coversFolder()) / std::to_string(songId);
+        fs::path base = fs::path(AppPaths::coversFolder()) / coverKey(songPath);
 
         // already cut out on an earlier run
         for (const char* ending : { ".jpg", ".png" }) {
@@ -382,6 +464,32 @@ namespace CoverArt
             std::ofstream mark(none);
         }
 
-        return findInFolder(songPath);
+        return findInFolder(songPath, libraryRoot);
+    }
+
+
+    // Pictures kept under a plain song number (the old way) can belong to a different song now. Deleted once.
+    void purgeNumbered()
+    {
+        std::error_code problem;
+        fs::path folder = AppPaths::coversFolder();
+        fs::path marker = folder / "keyed-by-path";
+
+        if (fs::exists(marker, problem))
+            return;
+
+        std::vector<fs::path> old;
+
+        for (fs::directory_iterator it(folder, problem); !problem && it != fs::directory_iterator(); it.increment(problem)) {
+            std::string stem = it->path().stem().string();
+
+            if (!stem.empty() && stem.find_first_not_of("0123456789") == std::string::npos)
+                old.push_back(it->path());
+        }
+
+        for (const fs::path& p : old)
+            fs::remove(p, problem);
+
+        std::ofstream mark(marker);
     }
 }

@@ -19,12 +19,31 @@ PlaylistPicker::PlaylistPicker(PlayerController& p)
 
 void PlaylistPicker::open(int number)
 {
-    songNumber = number;
+    openMany(number != 0 ? std::vector<int>{ number } : std::vector<int>());
+}
+
+
+void PlaylistPicker::openMany(const std::vector<int>& numbers)
+{
+    songNumbers = numbers;
     search = "";
     savedAtOpen.clear();
 
-    if (number != 0)
-        savedAtOpen = player.playlistsWithSong(number);
+    // a playlist counts as "saved" when it holds every one of the songs
+    for (int i = 1; i <= player.playlistCount() && !songNumbers.empty(); i++) {
+        std::string name = player.playlistName(i);
+        bool all = true;
+
+        for (int n : songNumbers) {
+            if (player.playlistRowOf(name, n) == 0) {
+                all = false;
+                break;
+            }
+        }
+
+        if (all)
+            savedAtOpen.push_back(name);
+    }
 }
 
 
@@ -36,14 +55,19 @@ void PlaylistPicker::setSearch(const std::string& text)
 
 int PlaylistPicker::song() const
 {
-    return songNumber;
+    return songNumbers.empty() ? 0 : songNumbers[0];
+}
+
+
+const std::vector<int>& PlaylistPicker::songList() const
+{
+    return songNumbers;
 }
 
 
 std::vector<PlaylistRow> PlaylistPicker::rows() const
 {
     std::vector<PlaylistRow> result;
-    std::vector<std::string> holding = songNumber != 0 ? player.playlistsWithSong(songNumber) : std::vector<std::string>();
     shownNames.clear();
 
     for (int pass = 0; pass < 2; pass++) {
@@ -57,11 +81,20 @@ std::vector<PlaylistRow> PlaylistPicker::rows() const
             if (!search.empty() && lowerCase(name).find(search) == std::string::npos)
                 continue;
 
+            bool holdsAll = !songNumbers.empty();
+
+            for (int n : songNumbers) {
+                if (player.playlistRowOf(name, n) == 0) {
+                    holdsAll = false;
+                    break;
+                }
+            }
+
             PlaylistRow row;
             row.name = name;
             row.count = player.playlistSongCount(name);
             row.saved = saved;
-            row.checked = std::find(holding.begin(), holding.end(), name) != holding.end();
+            row.checked = holdsAll;
 
             result.push_back(row);
             shownNames.push_back(name);
@@ -76,16 +109,28 @@ std::string PlaylistPicker::toggle(int row)
 {
     rows();                                     // makes shownNames match what the window shows
 
-    if (songNumber == 0 || row < 0 || row >= (int)shownNames.size())
+    if (songNumbers.empty() || row < 0 || row >= (int)shownNames.size())
         return "";
 
     std::string name = shownNames[row];
-    int inRow = player.playlistRowOf(name, songNumber);
+    bool holdsAll = true;
 
-    if (inRow != 0)
-        player.removeFromPlaylistRow(name, inRow);
-    else
-        player.addToPlaylist(name, songNumber);
+    for (int n : songNumbers) {
+        if (player.playlistRowOf(name, n) == 0)
+            holdsAll = false;
+    }
+
+    for (int n : songNumbers) {
+        int inRow = player.playlistRowOf(name, n);
+
+        if (holdsAll) {
+            if (inRow != 0)
+                player.removeFromPlaylistRow(name, inRow);
+        }
+        else if (inRow == 0) {
+            player.addToPlaylist(name, n);
+        }
+    }
 
     return name;
 }

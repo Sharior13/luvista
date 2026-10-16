@@ -12,7 +12,8 @@ public:
 
     // --- the login screen
     std::vector<std::string> cards() const;                  // the profiles that get a card
-    bool select(const std::string& name);                    // a card was clicked. false if that profile is gone
+    bool select(const std::string& name);                    // a card was clicked. false if that profile is gone or its card needs the password
+    bool isLocked(const std::string& name) const;            // the card asks for a password (signIn does the logging in)
     bool signIn(const std::string& userOrEmail, const std::string& password, std::string& error);
     void startGuest();                                       // Guest Mode: an empty, throw-away profile
 

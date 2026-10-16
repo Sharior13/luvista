@@ -50,6 +50,9 @@ void UiBridge::togglePlay()
 
     if (!player.hasSong()) {
         if (wantPlay) {
+            if (shown[ALL_SONGS].empty())
+                refreshPage(ALL_SONGS);                  // the Songs page was never opened: make its list now
+
             if (!shown[ALL_SONGS].empty())
                 player.playQueue(shown[ALL_SONGS], 0, library.queueName(Page::AllSongs));
             else
@@ -73,8 +76,7 @@ void UiBridge::setFavorite(bool on)
     if (player.currentIndex() != 0 && player.isFavorite() != on)
         player.toggleFavorite();
 
-    refreshPage(FAVORITES);
-    refreshPage(ALL_SONGS);
+    refreshAll();                                        // the page that is open and the sidebar numbers
     refreshHeartAndTick();
 }
 
@@ -102,10 +104,12 @@ void UiBridge::syncPlayerBar(bool force)
         if (cur != 0) {
             state().set_title(toSlint(player.songTitle(cur)));
             state().set_artist(toSlint(player.songArtist(cur)));
+            state().set_album(toSlint(player.songAlbum(cur)));
         }
         else {
             state().set_title(toSlint(name));
             state().set_artist(name.empty() ? "" : "Voice memo");
+            state().set_album("");
         }
 
         state().set_cover_art(cur == 0 ? slint::Image() : images.cover(cur));

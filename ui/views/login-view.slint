@@ -6,7 +6,7 @@ import { TextBox } from "../components/text-box.slint";
 import { DialogButton, ButtonKind } from "../components/dialog-frame.slint";
 
 //which screen of the login flow is showing
-export enum LoginMode { choose, sign-in, create, picture }
+export enum LoginMode { choose, sign-in, create, picture, unlock }
 
 //the dark card of the sign in / create profile screens: round logo and heading on the left, the form (children) on the right
 component AuthCard inherits Rectangle {
@@ -140,6 +140,7 @@ export component LoginView inherits Rectangle {
     in-out property <string> new-email;
     in-out property <string> new-password;
     in-out property <string> confirm-password;
+    in-out property <int> unlock-index;         //the profile whose card asked for a password
     //error found by the screen itself, before asking the backend
     property <string> local-error;
     //size and place of the dark card of the sign in / create screens
@@ -160,6 +161,15 @@ export component LoginView inherits Rectangle {
         }
         root.local-error = "";
         Session.login(root.user, root.password);
+    }
+
+    function submit-unlock() {
+        if (root.password == "") {
+            root.local-error = "Enter the password";
+            return;
+        }
+        root.local-error = "";
+        Session.login(Session.profiles[root.unlock-index].name, root.password);
     }
 
     function submit-create() {
@@ -243,7 +253,17 @@ export component LoginView inherits Rectangle {
                     for p[i] in Session.profiles : ProfileCard {
                         name: p.name;
                         picture: p.picture;
-                        clicked => { Session.select-profile(i); }
+                        locked: p.locked;
+                        clicked => {
+                            if (p.locked) {
+                                //"Remember me" was off for this profile: ask for the password first
+                                root.unlock-index = i;
+                                root.password = "";
+                                root.go(LoginMode.unlock);
+                            } else {
+                                Session.select-profile(i);
+                            }
+                        }
                     }
 
                     ActionCard {
@@ -331,6 +351,49 @@ export component LoginView inherits Rectangle {
         }
         HorizontalLayout {
             alignment: center;
+            LinkText {
+                text: "Back to profiles";
+                clicked => { root.go(LoginMode.choose); }
+            }
+        }
+    }
+
+    //2b. a card whose profile asked not to be remembered: the password first
+    if root.mode == LoginMode.unlock : AuthCard {
+        width: root.card-w;
+        height: root.card-h;
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
+        heading: "Welcome back,\n\{Session.profiles[root.unlock-index].name}";
+        picture: Session.profiles[root.unlock-index].picture;
+        show-user-icon: true;
+
+        TextBox {
+            label: "Password";
+            password: true;
+            text <=> root.password;
+            autofocus: true;
+            invalid: root.shown-error != "";
+            accepted(t) => { root.submit-unlock(); }
+        }
+
+        if root.shown-error != "" : Text {
+            text: root.shown-error;
+            color: Theme.danger;
+            font-size: 13px;
+            font-weight: 700;
+            wrap: word-wrap;
+        }
+
+        DialogButton {
+            label: Session.busy ? "Signing in..." : "Sign In";
+            enabled: !Session.busy;
+            clicked => { root.submit-unlock(); }
+        }
+
+        HorizontalLayout {
+            alignment: center;
+            padding-top: 4px;
             LinkText {
                 text: "Back to profiles";
                 clicked => { root.go(LoginMode.choose); }

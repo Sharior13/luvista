@@ -19,12 +19,15 @@ public:
     explicit PlaylistPicker(PlayerController& player);
 
     void open(int songNumber);                  // the window opened for this song (0 = no song)
+    void openMany(const std::vector<int>& songNumbers);   // ...for several songs at once (a ticked selection)
     void setSearch(const std::string& text);    // only playlists whose name has the text (any case)
 
     std::vector<PlaylistRow> rows() const;
-    int song() const;
+    int song() const;                           // the first song, 0 if none
+    const std::vector<int>& songList() const;   // all of them
 
-    // Adds the song to the playlist in row `row`, or takes it out. Gives the playlist's name ("" if nothing happened).
+    // Adds the song to the playlist in row `row`, or takes it out. With several songs: all of them are added
+    // unless the playlist already holds all of them, then all are taken out. Gives the playlist's name ("" if nothing happened).
     std::string toggle(int row);
 
     // A playlist was just made for this song: it counts as one that had it from the start.
@@ -32,7 +35,7 @@ public:
 
 private:
     PlayerController& player;
-    int songNumber = 0;
+    std::vector<int> songNumbers;
     std::string search;
     std::vector<std::string> savedAtOpen;
     mutable std::vector<std::string> shownNames;     // the playlist of each row, same order as rows()

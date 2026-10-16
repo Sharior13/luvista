@@ -27,10 +27,10 @@ int main()
     Recordings recordings;
 
     // The songs come from the music folders of the settings (the default Music folder and the ones the user added).
-    // Songs found earlier are loaded from the index even if a folder does not exist any more.
+    // Songs found earlier are loaded from the index even if a folder does not exist any more. The folders themselves
+    // are looked through after the window is up (UiBridge::start), on another thread, so the app opens at once.
     MusicFolders folders(player);
     folders.load();
-    folders.rescanAll();
 
     auto ui = AppWindow::create();
     UiBridge bridge(*ui, player, tracks, library, session, settings, recordings, recorder, folders);

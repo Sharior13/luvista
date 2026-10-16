@@ -1,0 +1,35 @@
+﻿import { LibraryPage } from "../components/library-page.slint";
+import { SongInfo } from "../components/song-row.slint";
+import { Format } from "../format.slint";
+
+//one album, opened by clicking an album name or a tile of the Albums page.
+//a tall banner with the album's picture and name, then play / shuffle and the song list.
+export component AlbumView inherits Rectangle {
+    in property <string> name;
+    in property <string> subtitle;         //the artist
+    in property <image> art;               //empty = gradient
+    in property <[SongInfo]> songs;
+    in property <float> total-seconds;
+    callback song-clicked(int);
+    callback play-clicked();
+    callback shuffle-clicked();
+    callback sort-changed(int);
+    callback song-action(int, string);
+
+    LibraryPage {
+        banner: true;
+        name: root.name;
+        banner-art: root.art;
+        subtitle: root.subtitle + "  \u{2022}  " + Format.songs(root.songs.length, root.total-seconds);
+        show-search: false;
+        list-id: "album";
+        songs: root.songs;
+        empty-text: "No songs on this album in your library";
+
+        song-clicked(i) => { root.song-clicked(i); }
+        play-clicked => { root.play-clicked(); }
+        shuffle-clicked => { root.shuffle-clicked(); }
+        sort-changed(i) => { root.sort-changed(i); }
+        song-action(i, id) => { root.song-action(i, id); }
+    }
+}

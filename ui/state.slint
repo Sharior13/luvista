@@ -6,11 +6,13 @@ import { SongInfo } from "components/song-row.slint";
 import { PlaylistChoice } from "components/add-to-playlist.slint";
 import { LyricLine } from "components/lyrics-panel.slint";
 import { ArtistInfo } from "components/artist-tile.slint";
+import { AlbumInfo } from "components/album-tile.slint";
+import { RemovedInfo } from "components/removed-songs-dialog.slint";
 import { RecordState } from "components/recorder-dialog.slint";
 import { MusicFolderInfo } from "views/settings-view.slint";
 
 //re-exported so app.slint can hand them to the C++ side
-export { TrackInfo, PlaylistInfo, NavSection, SongInfo, PlaylistChoice, LyricLine, ArtistInfo, RecordState, MusicFolderInfo }
+export { TrackInfo, PlaylistInfo, NavSection, SongInfo, PlaylistChoice, LyricLine, ArtistInfo, AlbumInfo, RemovedInfo, RecordState, MusicFolderInfo }
 
 //the window in front of the page, if any. Only one at a time.
 export enum DialogKind {
@@ -19,6 +21,7 @@ export enum DialogKind {
     rename-playlist,    //asks for a name, then rename-playlist
     delete-playlist,    //are you sure, then delete-playlist
     pick-playlist,      //"Add to playlist" for a song of a "..." menu
+    removed-songs,      //the manager of songs removed from the library (Settings)
     delete-song,        //are you sure, then delete-song
     remove-folder,      //are you sure, then remove-music-folder
     recorder,           //Start Recording
@@ -36,6 +39,7 @@ export global AppState {
     // now playing (shown in the player bar) 
     in-out property <string> title: MockData.enabled ? MockData.now-title : "";
     in-out property <string> artist: MockData.enabled ? MockData.now-artist : "";
+    in-out property <string> album;                     //album of the playing song, "" = none (shown next to the artist)
     in-out property <image> cover-art;                  //empty = gradient placeholder
     in-out property <float> position: MockData.enabled ? MockData.position : 0;   //seconds
     in-out property <float> duration: MockData.enabled ? MockData.now-duration : 0;   //seconds
@@ -56,6 +60,8 @@ export global AppState {
     in-out property <int> songs-count: MockData.enabled ? MockData.songs-count : 0;
     in-out property <int> favorites-count: MockData.enabled ? MockData.favorites-count : 0;
     in-out property <int> recordings-count: MockData.enabled ? MockData.recordings-count : 0;
+    in-out property <int> albums-count: 0;
+    in-out property <int> artists-count: 0;
     in-out property <[PlaylistInfo]> playlists: MockData.enabled ? MockData.playlists : [];
 
     //"Add to playlist" popup
@@ -88,13 +94,45 @@ export global AppState {
     in-out property <[SongInfo]> playlist-songs: MockData.enabled && MockData.library-feed ? MockData.playlist-songs : [];   //songs of playlists[selected-playlist]
     in-out property <float> playlist-seconds: MockData.enabled && MockData.library-feed ? MockData.playlist-seconds : 0;
 
+    //pages opened by "Show all" on the home page
+    in-out property <[SongInfo]> recent-songs;                  //recent activity, newest first
+    in-out property <float> recent-seconds;
+    in-out property <[SongInfo]> most-played-songs;
+    in-out property <float> most-played-seconds;
+    in-out property <[SongInfo]> recently-added-songs;
+    in-out property <float> recently-added-seconds;
+
+    //artists page (the artist page itself is further down)
+    in-out property <[ArtistInfo]> artists;
+
+    //songs removed from the library on purpose, and what the settings page does about them
+    in-out property <[RemovedInfo]> removed-songs;
+    in-out property <bool> open-last-profile: true;             //open the profile that was used last when the app starts
+
+    //albums page and album page
+    in-out property <[AlbumInfo]> albums;
+    in-out property <string> album-name;
+    in-out property <string> album-subtitle;                    //the artist of the album
+    in-out property <image> album-art;                          //empty = gradient banner
+    in-out property <[SongInfo]> album-songs;
+    in-out property <float> album-seconds;
+
+    //selecting several songs
+    in-out property <bool> select-mode;                         //tick boxes are showing
+    in-out property <int> selected-count;
+    in-out property <int> pending-count: 1;                     //songs the open "delete" window is about (more than one when it came from a selection)
+
+    //true while the library is being looked through in the background
+    in-out property <bool> scanning;
+
     //profile and settings pages
     in-out property <string> profile-name: MockData.enabled ? MockData.profile-name : "";
     in-out property <string> account-email;
     in-out property <[ArtistInfo]> top-artists: MockData.enabled ? MockData.top-artists : [];   //most played artists first
+    in-out property <[SongInfo]> top-songs;                     //most played songs first (profile page)
+    in-out property <string> storage-text;            //"3 folders, 128 songs"
     in-out property <[MusicFolderInfo]> music-folders: MockData.enabled ? MockData.music-folders : [];   //the folders the library reads, the default one first
     in-out property <string> folder-error;            //why a folder could not be added or removed, empty = no problem
-    in-out property <string> storage-text;            //"3 folders, 128 songs"
     in-out property <[string]> languages: ["English"];
     in-out property <int> language-index: 0;
     in-out property <[string]> themes: ["Default"];
@@ -169,6 +207,7 @@ export global AppState {
     //song "..." menus. list is "songs", "favorites", "recordings", "playlist" or "artist", row is the row as shown right now
     //action is "play", "queue-add", "queue-remove", "favorite", "show-file" or "remove-from-playlist".
     //"add-playlist", "delete" and "view-artist" are handled by the screen first, see below
+    //(with several songs ticked, the menu of a ticked row works on all of them: selection-action)
     callback song-menu-action(string, int, string);
     callback song-playlists-requested(string, int);     //"Add to playlist" opened: fill song-playlist-choices for this song
     callback song-playlist-toggled(int);                //row of song-playlist-choices: add or remove the song, then flip checked
@@ -179,6 +218,31 @@ export global AppState {
     callback create-playlist(string, string) -> bool;   //name, create-with. true = created, the window closes. false = keep it open and set dialog-error
     callback rename-playlist(int, string) -> bool;      //index into playlists, new name. same true / false
     callback delete-playlist(int);                      //confirmed, index into playlists
+
+    //selecting several songs. list is "songs", "favorites", "recordings", "playlist", "artist", "album", "recent", "most-played" or "recently-added"
+    callback select-mode-toggled(bool);                 //the select button, true = tick boxes on. false also clears the ticks
+    callback row-selected(string, int, bool, bool);     //list, row, ctrl held, shift held: tick or untick (see Selection)
+    callback select-all(string);
+    //an entry of the selection menu: "play", "queue-add", "queue-remove", "add-playlist", "favorite", "unfavorite", "remove-from-playlist" or "delete"
+    callback selection-action(string, string);          //list, action. The program opens the windows itself for add-playlist and delete
+
+    //profile page
+    callback top-song-clicked(int);                     //a row of "Most played songs", index into top-songs
+
+    //artists page
+    callback artist-tile-clicked(int);                  //a tile of the Artists page, index into artists
+    callback artists-search-changed(string);
+    callback artists-sort-changed(int);                 //0 = name, 1 = most songs
+
+    //removed songs manager and launch settings (Settings page)
+    callback restore-removed(int);                      //put one song of removed-songs back into the library
+    callback restore-all-removed();
+    callback open-last-profile-toggled(bool);
+
+    //albums page
+    callback album-clicked(int);                        //a tile of the Albums page, index into albums
+    callback albums-search-changed(string);
+    callback albums-sort-changed(int);                  //0 = name, 1 = artist, 2 = recently added
 
     //artist page
     callback artist-clicked(string);                    //name: fill artist-songs / artist-seconds / artist-art. The screen already switched to the artist page

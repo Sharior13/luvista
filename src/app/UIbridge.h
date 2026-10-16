@@ -1,8 +1,12 @@
 ﻿#pragma once
+#include <atomic>
+#include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 #include "app.h"                          // made by Slint from ui/app.slint
 #include "imageCache.h"
+#include "lazyModel.h"
 #include "../audio/Recorder.h"
 #include "../core/library.h"
 #include "../core/lyrics.h"
@@ -10,6 +14,8 @@
 #include "../core/playerController.h"
 #include "../core/playlistPicker.h"
 #include "../core/recordings.h"
+#include "../core/selection.h"
+#include "../core/launchSettings.h"
 #include "../core/settings.h"
 #include "../core/trackList.h"
 #include "../core/userSession.h"
@@ -24,7 +30,7 @@
 // The code is split over several files, one per part of the screen:
 //   UIbridge.cpp            start, the clock, helpers every part uses
 //   UIbridge_player.cpp     the player bar, the queue panel, the lyrics
-//   UIbridge_pages.cpp      home, All Songs, Favorites, artists, the "..." menus
+//   UIbridge_pages.cpp      home, All Songs, Favorites, artists, albums, the "..." menus, selecting several songs, scanning
 //   UIbridge_playlists.cpp  the playlists and the "add to playlist" windows
 //   UIbridge_recorder.cpp   the Start Recording window and the Recordings page
 //   UIbridge_session.cpp    login, profiles, account and settings
@@ -33,16 +39,19 @@ public:
     UiBridge(AppWindow& window, PlayerController& player, TrackList& tracks, Library& library,
              UserSession& session, Settings& settings, Recordings& recordings, Recorder& recorder,
              MusicFolders& folders);
+    ~UiBridge();
 
     void start();                         // fills the screen, hooks up the buttons and starts the clock. Call once before ui.run()
 
 private:
-    // The song pages. The first four are Library pages, RECORDINGS has its own list of files.
-    enum PageId { ALL_SONGS, FAVORITES, PLAYLIST, ARTIST, RECORDINGS, PAGE_COUNT };
+    // The song pages. The first eight are Library pages (same order as the Library's Page enum), RECORDINGS has its own list of files.
+    enum PageId { ALL_SONGS, FAVORITES, PLAYLIST, ARTIST, ALBUM, RECENT, MOST_PLAYED, RECENTLY_ADDED, RECORDINGS, PAGE_COUNT };
+    static_assert((int)Page::RecentlyAdded + 1 == (int)RECORDINGS, "the first PageIds must match the Library's pages");
 
     static constexpr int HOME_ROWS = 12;          // cards in a home row
     static constexpr int QUEUE_ROWS = 50;         // songs shown after the playing one
     static constexpr int ARTIST_TILES = 8;        // the Top Artists row of the profile page
+    static constexpr int TOP_SONGS = 5;           // the Most Played list of the profile page
 
     AppWindow& ui;
     PlayerController& player;
@@ -70,6 +79,35 @@ private:
     std::vector<int> queueNumbers;        // row of the queue panel -> song number
     std::vector<int> recentNumbers;       // row of the "recently played" tab -> song number
     std::vector<std::string> profileCards;        // card of the login screen -> profile name
+    std::vector<int> topSongNumbers;              // row of the profile page's Most Played list -> song number
+
+    // The rows of each page are made when they come into view (see LazyModel). Kept so one row can be redrawn.
+    std::shared_ptr<LazyModel<SongInfo>> models[PAGE_COUNT];
+
+    // Selecting several songs. The ticks belong to one page at a time (selectionPage).
+    Selection selection;
+    int selectionPage = -1;
+    bool selecting = false;               // the tick boxes are showing
+
+    // The Artists page
+    std::vector<ArtistEntry> artistEntries;
+    std::string artistSearch;
+    int artistSort = 0;
+    int artistsTotal = 0;
+
+    LaunchSettings launch;                // open the last profile when the app starts
+
+    // The Albums page
+    std::vector<AlbumEntry> albumEntries;
+    std::string albumSearch;
+    int albumSort = 0;
+    int albumsTotal = 0;
+
+    // Looking through the music folders happens on another thread, so the window shows at once.
+    std::thread worker;
+    std::atomic<bool> stopping{ false };
+    bool working = false;                 // a scan or a repair is running or about to be applied
+    std::vector<std::string> pendingFolders;
 
     int lastCurrent = -1;
     std::string lastName;
@@ -79,10 +117,13 @@ private:
     decltype(auto) sessionState() const { return ui.global<Session>(); }
 
     static Page pageOf(PageId id);
+    static std::string listNameOf(PageId id);                          // ALL_SONGS -> "songs" ...
     static int pageIdOf(const slint::SharedString& listName);          // "songs" -> ALL_SONGS ... -1 if unknown
 
     // ---- UIbridge.cpp
-    void refreshAll();                    // every song page, the home page and the sidebar numbers
+    void refreshAll();                    // the page that is open, the home page and the sidebar numbers (the other pages are made when they open)
+    void refreshCounts();                 // the numbers in the sidebar
+    int currentPage() const;              // the PageId of the page that is open, -1 if it is not a song list
     void reloadLibrary();                 // songs came or went: read the library again, then refreshAll
     SongInfo infoOf(int songNumber, const std::vector<char>& favorites);
     SongInfo infoOf(int songNumber);
@@ -102,6 +143,30 @@ private:
     void connectSongMenus();
     void refreshPage(PageId page);
     void resetPage(PageId page);
+    slint::Image firstArt(const std::vector<int>& songNumbers);        // the first picture among the first few songs
+    void openArtist(const std::string& name);
+    void openAlbum(const std::string& name);
+    void openPage(NavSection section, PageId page);                     // "Show all" pages
+    void refreshAlbums();
+    void refreshArtists();
+    void refreshRemoved();                // the list in Settings > Removed songs
+    void openLastProfile();               // at start: skip the login screen when allowed
+    void refreshTopSongs();
+
+    // selecting several songs
+    void connectSelection();
+    void syncSelection();                 // tells the screen how many are ticked and whether the boxes show
+    void endSelecting();                  // boxes away, nothing ticked
+    void clearTicks();                    // nothing ticked, boxes stay
+    void keepSelection(PageId page, int rows);
+    void selectionAction(PageId page, const std::string& action);
+    void deleteSelection(PageId page);
+
+    // looking for songs in the background
+    void scanFolder(const std::string& folder);
+    void finishScan(const ScanResult& result);
+    void startRepair();
+    void workDone();
     void playRow(PageId page, int row);
     void songMenuAction(PageId page, int row, const std::string& action);
     void deleteRow(PageId page, int row);
@@ -110,8 +175,8 @@ private:
     void refreshTopArtists();
     void refreshStorage();
     void refreshFolders();                // the "Music folders" list of the settings
-    void addFolder();
     void removeFolder(int row);
+    void addFolder();
     void openSongsPage();
 
     // ---- UIbridge_playlists.cpp

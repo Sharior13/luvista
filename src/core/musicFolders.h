@@ -10,13 +10,12 @@ public:
     explicit MusicFolders(PlayerController& player);
 
     void load();                                              // reads the list from the file
-    void rescanAll();                                         // reads every folder of the list (the program does this at start)
 
     int count() const;                                        // folders in the list, the default one included
     std::string path(int row) const;                          // row 0 is the default folder
     bool isDefault(int row) const;
 
-    bool add(const std::string& folder, std::string& error);  // adds and reads the folder. false + a sentence for the screen
+    bool add(const std::string& folder, std::string& error);  // adds the folder to the list (the program reads it, on another thread). false + a sentence for the screen
     bool remove(int row, std::string& error);                 // its songs leave the library, the files stay on disk
 
 private:

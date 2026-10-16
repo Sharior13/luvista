@@ -1,0 +1,126 @@
+﻿import { Theme } from "../theme.slint";
+import { PageScroll } from "../components/page-scroll.slint";
+import { SearchField } from "../components/search-field.slint";
+import { SortMenu } from "../components/sort-menu.slint";
+import { AlbumInfo, AlbumTile } from "../components/album-tile.slint";
+
+//the Albums page: a grid of album tiles. Like the song lists, only the tiles in view are made.
+export component AlbumsView inherits Rectangle {
+    in property <[AlbumInfo]> albums;
+    callback album-clicked(int);
+    callback search-edited(string);
+    callback sort-changed(int);
+
+    property <bool> compact: root.width < Theme.bp-date;
+    property <length> pad: root.compact ? 20px : 36px;
+    property <length> gap: 12px;
+    property <length> tile-min: root.compact ? 130px : 160px;
+    property <int> columns: Math.max(1, Math.floor((root.width - 2 * root.pad + root.gap) / (root.tile-min + root.gap)));
+    property <length> tile-w: (root.width - 2 * root.pad - (root.columns - 1) * root.gap) / root.columns;
+    property <length> tile-h: root.tile-w + 58px;
+    property <length> pitch: root.tile-h + root.gap;
+    property <int> total-rows: Math.ceil(root.albums.length / root.columns);
+    property <bool> has-search: root.width >= 480px;
+    property <string> search-text;
+
+    //the rows of tiles in view, and a few around them
+    property <length> grid-top: grid.y;
+    property <int> window-rows: Math.min(root.total-rows, Math.ceil(root.height / root.pitch) + 3);
+    property <int> first-row: Math.min(
+        Math.max(0, root.total-rows - root.window-rows),
+        Math.max(0, Math.floor((scroller.scroll-y - root.grid-top) / root.pitch) - 1));
+
+    scroller := PageScroll {
+        VerticalLayout {
+            spacing: 0px;
+
+            //page title
+            Rectangle {
+                height: root.compact ? 76px : 96px;
+
+                Text {
+                    x: root.pad;
+                    width: parent.width - 2 * root.pad;
+                    height: parent.height;
+                    text: "Albums";
+                    color: Theme.text-primary;
+                    font-size: root.compact ? 34px : 44px;
+                    font-weight: 800;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+            }
+
+            //search and sort
+            Rectangle {
+                height: 64px;
+                background: Theme.header-band;
+
+                Text {
+                    x: root.pad;
+                    width: max(0px, parent.width - 2 * root.pad - 220px);
+                    height: parent.height;
+                    text: root.albums.length == 1 ? "1 album" : "\{root.albums.length} albums";
+                    color: Theme.text-primary;
+                    font-size: 13px;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+
+                sort := SortMenu {
+                    x: parent.width - self.width - root.pad;
+                    y: (parent.height - self.height) / 2;
+                    options: ["Name", "Artist", "Recently added"];
+                    selected: 0;
+                    chosen(i) => { root.sort-changed(i); }
+                }
+
+                if root.has-search : SearchField {
+                    x: sort.x - self.width - 12px;
+                    y: (parent.height - self.height) / 2;
+                    width: Math.min(260px, root.width * 0.35);
+                    height: 36px;
+                    background: Theme.input-bg;
+                    placeholder: "Search Albums";
+                    text <=> root.search-text;
+                    edited(t) => { root.search-edited(t); }
+                }
+            }
+
+            Rectangle { height: 20px; }
+
+            //empty
+            if root.albums.length == 0 : Rectangle {
+                height: 64px;
+                Text {
+                    x: root.pad;
+                    width: parent.width - 2 * root.pad;
+                    height: parent.height;
+                    text: root.search-text != "" ? "No albums match “\{root.search-text}”" : "No albums yet. Songs whose files name an album show up here";
+                    color: Theme.text-primary;
+                    font-size: 15px;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+            }
+
+            grid := Rectangle {
+                height: root.total-rows * root.pitch;
+
+                for k in root.window-rows * root.columns : AlbumTile {
+                    property <int> idx: root.first-row * root.columns + k;
+                    visible: self.idx < root.albums.length;
+                    x: root.pad + Math.mod(k, root.columns) * (root.tile-w + root.gap);
+                    y: Math.floor(k / root.columns) * root.pitch + root.first-row * root.pitch;
+                    width: root.tile-w;
+                    album: root.albums[self.idx];
+                    clicked => { root.album-clicked(self.idx); }
+                }
+            }
+
+            Rectangle { height: 40px; }
+        }
+    }
+}

@@ -1,6 +1,8 @@
 ﻿import { Theme } from "../theme.slint";
 import { SongInfo } from "song-row.slint";
 import { PageScroll } from "page-scroll.slint";
+import { ClickText } from "click-text.slint";
+import { Nav } from "../navigation.slint";
 
 //one track in the queue panel: art, title and artist. The playing one gets a pink title.
 component QueueRow inherits Rectangle {
@@ -61,12 +63,16 @@ component QueueRow inherits Rectangle {
             font-weight: 700;
             overflow: elide;
         }
-        Text {
-            text: root.artist;
-            color: Theme.control-muted;
-            font-size: 12px;
-            font-weight: 700;
-            overflow: elide;
+        HorizontalLayout {
+            alignment: start;
+
+            ClickText {
+                text: root.artist;
+                tint: Theme.control-muted;
+                font-size: 12px;
+                enabled: root.artist != "" && root.artist != "Unknown artist" && root.artist != "Voice memo";
+                clicked => { Nav.open-artist(root.artist); }
+            }
         }
     }
 }

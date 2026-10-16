@@ -3,8 +3,8 @@ import { NavItem } from "nav-item.slint";
 import { PlaylistItem, PlaylistInfo } from "playlist-item.slint";
 import { PageScroll } from "page-scroll.slint";
 
-//profile, settings and artist are pages that are not in the sidebar, so none of its entries is highlighted on them
-export enum NavSection { home, songs, favorites, recordings, profile, settings, artist }
+//profile, settings, artist, album and the "Show all" pages are not in the sidebar, so none of its entries is highlighted on them
+export enum NavSection { home, songs, favorites, recordings, profile, settings, artist, artists, albums, album, recent, most-played, recently-added }
 
 //collapsible side navigation. Click the logo to collapse/expand it.
 export component SideNav inherits Rectangle {
@@ -14,6 +14,8 @@ export component SideNav inherits Rectangle {
     in property <int> songs-count: 0;
     in property <int> favorites-count: 0;
     in property <int> recordings-count: 0;
+    in property <int> albums-count: 0;
+    in property <int> artists-count: 0;
     in property <[PlaylistInfo]> playlists;
     callback playlist-clicked(int);
     callback section-changed(NavSection);
@@ -118,6 +120,34 @@ export component SideNav inherits Rectangle {
                 root.selected-playlist = -1;
                 root.section = NavSection.songs;
                 root.section-changed(NavSection.songs);
+            }
+        }
+
+        //artists
+        NavItem {
+            icon: @image-url("../icons/artist.svg");
+            label: "Artists";
+            count: "\{root.artists-count}";
+            compact: root.collapsed;
+            active: root.selected-playlist < 0 && (root.section == NavSection.artists || root.section == NavSection.artist);
+            clicked => {
+                root.selected-playlist = -1;
+                root.section = NavSection.artists;
+                root.section-changed(NavSection.artists);
+            }
+        }
+
+        //albums
+        NavItem {
+            icon: @image-url("../icons/album.svg");
+            label: "Albums";
+            count: "\{root.albums-count}";
+            compact: root.collapsed;
+            active: root.selected-playlist < 0 && (root.section == NavSection.albums || root.section == NavSection.album);
+            clicked => {
+                root.selected-playlist = -1;
+                root.section = NavSection.albums;
+                root.section-changed(NavSection.albums);
             }
         }
 

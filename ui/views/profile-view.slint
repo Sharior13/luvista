@@ -3,6 +3,8 @@ import { PageScroll } from "../components/page-scroll.slint";
 import { ArtistInfo, ArtistTile } from "../components/artist-tile.slint";
 import { MenuPanel, MenuRow, MenuDivider } from "../components/menu.slint";
 import { Format } from "../format.slint";
+import { SongInfo, SongRow } from "../components/song-row.slint";
+import { SongTableHeader } from "../components/song-table-header.slint";
 
 //profile page: name and picture, a settings button, a "..." menu and the Top Artist row.
 //clicking an artist opens that artist's page.
@@ -12,13 +14,22 @@ export component ProfileView inherits Rectangle {
     in property <int> playlist-count;
     in property <int> song-count;
     in property <[ArtistInfo]> top-artists;
+    in property <[SongInfo]> top-songs;       //most played songs, most played first
     callback settings-clicked();
     callback edit-clicked();                  //"Edit profile" in the "..." menu
     callback picture-clicked();               //click on the picture, or "Change picture"
     callback logout-clicked();
     callback artist-clicked(int);             //index into top-artists
+    callback top-song-clicked(int);           //index into top-songs
+    callback show-most-played();              //"Show all" next to Most Played
 
     property <bool> compact: root.width < Theme.bp-date;
+    property <bool> narrow: root.width < 470px;                        //picture and name stack on top of each other
+    property <bool> show-album: root.width >= Theme.bp-album;
+    property <length> tile-gap: 12px;
+    //artist tiles wrap onto more rows instead of running off the right edge
+    property <int> tile-columns: Math.max(1, Math.floor((root.width - 2 * root.pad + root.tile-gap) / (118px + root.tile-gap)));
+    property <int> tile-rows: Math.ceil(root.top-artists.length / root.tile-columns);
     property <length> pad: root.compact ? 20px : 36px;
     property <length> art-size: root.compact ? 88px : 112px;
     property <bool> has-picture: root.picture.width > 0 && root.picture.height > 0;
@@ -46,12 +57,12 @@ export component ProfileView inherits Rectangle {
 
             //band: picture, name and the playlist / song count
             Rectangle {
-                height: root.art-size + 24px;
+                height: root.narrow ? root.art-size + 24px + 76px : root.art-size + 24px;
                 background: Theme.header-band;
 
                 pic := Rectangle {
-                    x: root.pad;
-                    y: (parent.height - self.height) / 2;
+                    x: root.narrow ? (parent.width - self.width) / 2 : root.pad;
+                    y: root.narrow ? 12px : (parent.height - self.height) / 2;
                     width: root.art-size;
                     height: root.art-size;
                     border-radius: 8px;
@@ -93,17 +104,19 @@ export component ProfileView inherits Rectangle {
                 }
 
                 VerticalLayout {
-                    x: pic.x + pic.width + 20px;
+                    x: root.narrow ? root.pad : pic.x + pic.width + 20px;
+                    y: root.narrow ? pic.y + pic.height + 8px : 0px;
                     width: max(0px, parent.width - self.x - root.pad);
-                    height: parent.height;
+                    height: root.narrow ? 64px : parent.height;
                     alignment: center;
                     spacing: 4px;
 
                     Text {
                         text: root.name;
                         color: Theme.text-primary;
-                        font-size: root.compact ? 30px : 44px;
+                        font-size: root.narrow ? 26px : (root.compact ? 30px : 44px);
                         font-weight: 800;
+                        horizontal-alignment: root.narrow ? center : left;
                         overflow: elide;
                     }
                     Text {
@@ -111,6 +124,7 @@ export component ProfileView inherits Rectangle {
                         color: Theme.text-primary;
                         font-size: 13px;
                         font-weight: 700;
+                        horizontal-alignment: root.narrow ? center : left;
                         overflow: elide;
                     }
                 }
@@ -197,6 +211,81 @@ export component ProfileView inherits Rectangle {
                 }
             }
 
+            //most played songs
+            Rectangle {
+                height: 40px;
+
+                Text {
+                    x: root.pad;
+                    width: parent.width - 2 * root.pad - 90px;
+                    height: parent.height;
+                    text: "Most Played";
+                    color: Theme.text-primary;
+                    font-size: 18px;
+                    font-weight: 800;
+                    vertical-alignment: center;
+                }
+
+                if root.top-songs.length > 0 : Rectangle {
+                    x: parent.width - self.width - root.pad;
+                    width: 80px;
+
+                    Text {
+                        text: "Show all";
+                        color: Theme.text-primary;
+                        font-size: 14px;
+                        font-weight: 700;
+                        horizontal-alignment: right;
+                        vertical-alignment: center;
+                        opacity: all-touch.has-hover ? 1.0 : 0.85;
+                    }
+                    all-touch := TouchArea {
+                        mouse-cursor: MouseCursor.pointer;
+                        clicked => { root.show-most-played(); }
+                    }
+                }
+            }
+
+            if root.top-songs.length == 0 : Rectangle {
+                height: 64px;
+                Text {
+                    x: root.pad;
+                    width: parent.width - 2 * root.pad;
+                    height: parent.height;
+                    text: "Nothing played yet. Your most played songs will show up here";
+                    color: Theme.text-primary;
+                    font-size: 15px;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+            }
+
+            if root.top-songs.length > 0 : VerticalLayout {
+                padding-left: root.pad;
+                padding-right: root.pad;
+                spacing: 2px;
+
+                SongTableHeader {
+                    show-album: root.show-album;
+                    show-date: false;
+                    show-more: false;
+                    length-label: "Length";
+                }
+
+                for s[i] in root.top-songs : SongRow {
+                    index: i;
+                    song: s;
+                    show-album: root.show-album;
+                    show-date: false;
+                    show-more: false;
+                    context: "most-played";
+                    clicked(ctrl, shift) => { root.top-song-clicked(i); }
+                }
+            }
+
+            Rectangle { height: 24px; }
+
             //top artists
             Rectangle {
                 height: 40px;
@@ -227,25 +316,15 @@ export component ProfileView inherits Rectangle {
                 }
             }
 
-            //row of tiles, scrolls sideways when there are more than fit
+            //tiles, as many to a row as fit
             if root.top-artists.length > 0 : Rectangle {
-                height: 164px;
+                height: root.tile-rows * (150px + root.tile-gap);
 
-                Flickable {
-                    x: root.pad - 8px;
-                    width: parent.width - root.pad + 8px;
-                    height: parent.height;
-                    content-width: tiles.preferred-width + root.pad;
-
-                    tiles := HorizontalLayout {
-                        spacing: 12px;
-                        alignment: start;
-
-                        for a[i] in root.top-artists : ArtistTile {
-                            artist: a;
-                            clicked => { root.artist-clicked(i); }
-                        }
-                    }
+                for a[i] in root.top-artists : ArtistTile {
+                    x: root.pad - 8px + Math.mod(i, root.tile-columns) * (118px + root.tile-gap);
+                    y: Math.floor(i / root.tile-columns) * (150px + root.tile-gap);
+                    artist: a;
+                    clicked => { root.artist-clicked(i); }
                 }
             }
 

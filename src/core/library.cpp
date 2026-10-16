@@ -2,6 +2,8 @@
 #include "../audio/AudioInfo.h"
 #include <algorithm>
 #include <cctype>
+#include <unordered_map>
+#include <unordered_set>
 
 static std::string lowerCase(std::string text)
 {
@@ -12,15 +14,28 @@ static std::string lowerCase(std::string text)
 }
 
 
+int Library::defaultSort(Page page)
+{
+    // the pages whose order is the point of the page start in that order, the others by title
+    if (page == Page::Recent || page == Page::MostPlayed || page == Page::RecentlyAdded)
+        return 0;
+
+    return 1;
+}
+
+
 Library::Library(PlayerController& p, TrackList& t)
     : player(p), tracks(t)
 {
+    for (int i = 0; i < (int)Page::Count; i++)
+        pages[i].sort = defaultSort((Page)i);
 }
 
 
 void Library::reload()
 {
     songs.clear();
+    songs.reserve(tracks.getCount());
 
     for (int n = 1; n <= tracks.getCount(); n++) {
         SongMeta s;
@@ -31,14 +46,7 @@ void Library::reload()
         s.artistLow = lowerCase(s.artist);
         s.albumLow = lowerCase(s.album);
         s.added = tracks.getAdded(n);
-
-        int id = tracks.getId(n);
-        auto known = lengthOfId.find(id);
-
-        if (known == lengthOfId.end())
-            known = lengthOfId.emplace(id, AudioInfo::seconds(tracks.getTrack(n))).first;
-
-        s.seconds = known->second;
+        s.seconds = tracks.getSeconds(n);           // read once, kept in the index. No file is opened here
         songs.push_back(s);
     }
 }
@@ -77,6 +85,7 @@ void Library::setSort(Page page, int sort)
 void Library::resetPage(Page page)
 {
     pages[(int)page] = PageState();
+    pages[(int)page].sort = defaultSort(page);
 
     if (page == Page::AllSongs)
         everywhere = "";
@@ -100,8 +109,16 @@ void Library::setEverywhereSearch(const std::string& text)
 }
 
 
+void Library::setAlbum(const std::string& name)
+{
+    album = name;
+    albumKey = lowerCase(name);
+}
+
+
 const std::string& Library::playlistName() const { return playlist; }
 const std::string& Library::artistName() const { return artist; }
+const std::string& Library::albumName() const { return album; }
 bool Library::searchingEverywhere() const { return !everywhere.empty(); }
 
 
@@ -110,6 +127,10 @@ std::string Library::queueName(Page page) const
     if (page == Page::AllSongs) return everywhere.empty() ? "All Songs" : "Search results";
     if (page == Page::Favorites) return "Favorites";
     if (page == Page::Artist) return artist.empty() ? "Artist" : artist;
+    if (page == Page::Album) return album.empty() ? "Album" : album;
+    if (page == Page::Recent) return "Recent activity";
+    if (page == Page::MostPlayed) return "Most played";
+    if (page == Page::RecentlyAdded) return "Recently added";
     return playlist.empty() ? "Playlist" : playlist;
 }
 
@@ -132,6 +153,19 @@ std::vector<int> Library::source(Page page) const
     }
     else if (page == Page::Artist) {
         numbers = songsOfArtist(artist);
+    }
+    else if (page == Page::Album) {
+        numbers = songsOfAlbum(album);
+    }
+    else if (page == Page::Recent) {
+        numbers = recentlyPlayed();
+    }
+    else if (page == Page::MostPlayed) {
+        numbers = mostPlayed(size());
+    }
+    else if (page == Page::RecentlyAdded) {
+        for (int n = 1; n <= size(); n++)
+            numbers.push_back(n);
     }
     else if (!playlist.empty()) {
         for (int row = 1; row <= player.playlistSongCount(playlist); row++) {
@@ -183,9 +217,19 @@ PageResult Library::build(Page page) const
             result.rows.push_back(n);
     }
 
-    // sort: "recently added" is the list turned around, the others sort by words or by length
+    // sort 0 is the order of the page itself: newest song first for the song lists, the newest favorite or playlist
+    // entry first, and the order they come in for "recently played" and "most played"
     if (state.sort == 0) {
-        std::reverse(result.rows.begin(), result.rows.end());
+        if (page == Page::Favorites || page == Page::Playlist) {
+            std::reverse(result.rows.begin(), result.rows.end());
+        }
+        else if (page != Page::Recent && page != Page::MostPlayed) {
+            std::stable_sort(result.rows.begin(), result.rows.end(), [&](int a, int b) {
+                if (songs[a - 1].added != songs[b - 1].added)
+                    return songs[a - 1].added > songs[b - 1].added;
+                return a < b;
+                });
+        }
     }
     else {
         std::stable_sort(result.rows.begin(), result.rows.end(), [&](int a, int b) {
@@ -216,12 +260,192 @@ std::vector<int> Library::songsOfArtist(const std::string& name) const
 }
 
 
+std::vector<int> Library::songsOfAlbum(const std::string& name) const
+{
+    std::string key = lowerCase(name);
+    std::vector<int> numbers;
+
+    for (int n = 1; n <= size(); n++) {
+        if (songs[n - 1].albumLow == key)
+            numbers.push_back(n);
+    }
+
+    return numbers;
+}
+
+
+static bool hasNoArtist(const std::string& artistLow)
+{
+    return artistLow.empty() || artistLow == "unknown" || artistLow == "unknown artist";
+}
+
+
+std::vector<ArtistEntry> Library::artists(const std::string& search, int sort) const
+{
+    std::string wanted = lowerCase(search);
+    std::unordered_map<std::string, size_t> at;
+    std::vector<ArtistEntry> list;
+
+    for (int n = 1; n <= size(); n++) {
+        const SongMeta& s = songs[n - 1];
+
+        if (hasNoArtist(s.artistLow))
+            continue;
+
+        auto found = at.find(s.artistLow);
+
+        if (found == at.end()) {
+            found = at.emplace(s.artistLow, list.size()).first;
+            ArtistEntry entry;
+            entry.name = s.artist;
+            entry.firstSong = n;
+            list.push_back(entry);
+        }
+
+        list[found->second].songs++;
+    }
+
+    if (!wanted.empty()) {
+        list.erase(std::remove_if(list.begin(), list.end(), [&](const ArtistEntry& e) {
+            return lowerCase(e.name).find(wanted) == std::string::npos;
+            }), list.end());
+    }
+
+    std::stable_sort(list.begin(), list.end(), [&](const ArtistEntry& a, const ArtistEntry& b) {
+        if (sort == 1 && a.songs != b.songs)
+            return a.songs > b.songs;
+        return lowerCase(a.name) < lowerCase(b.name);
+        });
+
+    return list;
+}
+
+
+int Library::artistCount() const
+{
+    std::unordered_set<std::string> names;
+
+    for (const SongMeta& s : songs) {
+        if (!hasNoArtist(s.artistLow))
+            names.insert(s.artistLow);
+    }
+
+    return (int)names.size();
+}
+
+
+static bool hasNoAlbum(const std::string& albumLow)
+{
+    return albumLow.empty() || albumLow == "unknown album" || albumLow == "-";
+}
+
+
+std::vector<AlbumEntry> Library::albums(const std::string& search, int sort) const
+{
+    std::string wanted = lowerCase(search);
+    std::unordered_map<std::string, size_t> at;         // album name (small letters) -> place in `list`
+    std::vector<AlbumEntry> list;
+    std::vector<std::string> artistKeys;                 // the artist all songs of the album share so far, "\n" = they differ
+
+    for (int n = 1; n <= size(); n++) {
+        const SongMeta& s = songs[n - 1];
+
+        if (hasNoAlbum(s.albumLow))
+            continue;
+
+        auto found = at.find(s.albumLow);
+
+        if (found == at.end()) {
+            found = at.emplace(s.albumLow, list.size()).first;
+
+            AlbumEntry entry;
+            entry.name = s.album;
+            entry.artist = s.artist;
+            entry.firstSong = n;
+            list.push_back(entry);
+            artistKeys.push_back(s.artistLow);
+        }
+
+        AlbumEntry& entry = list[found->second];
+        entry.songs++;
+        entry.seconds += s.seconds;
+        entry.added = std::max(entry.added, s.added);
+
+        if (artistKeys[found->second] != s.artistLow && artistKeys[found->second] != "\n") {
+            artistKeys[found->second] = "\n";
+            entry.artist = "Various artists";
+        }
+    }
+
+    if (!wanted.empty()) {
+        list.erase(std::remove_if(list.begin(), list.end(), [&](const AlbumEntry& e) {
+            return lowerCase(e.name).find(wanted) == std::string::npos &&
+                lowerCase(e.artist).find(wanted) == std::string::npos;
+            }), list.end());
+    }
+
+    std::stable_sort(list.begin(), list.end(), [&](const AlbumEntry& a, const AlbumEntry& b) {
+        if (sort == 1) return lowerCase(a.artist) < lowerCase(b.artist);
+        if (sort == 2) return a.added > b.added;
+        return lowerCase(a.name) < lowerCase(b.name);
+        });
+
+    return list;
+}
+
+
+int Library::albumCount() const
+{
+    std::unordered_set<std::string> names;
+
+    for (const SongMeta& s : songs) {
+        if (!hasNoAlbum(s.albumLow))
+            names.insert(s.albumLow);
+    }
+
+    return (int)names.size();
+}
+
+
+std::string Library::albumArtist(const std::string& name) const
+{
+    std::string key = lowerCase(name);
+    std::string who;
+    bool first = true;
+
+    for (const SongMeta& s : songs) {
+        if (s.albumLow != key)
+            continue;
+
+        if (first) {
+            who = s.artist;
+            first = false;
+        }
+        else if (lowerCase(who) != s.artistLow) {
+            return "Various artists";
+        }
+    }
+
+    return who;
+}
+
+
 std::vector<int> Library::recentlyAdded(int most) const
 {
     std::vector<int> numbers;
 
-    for (int n = size(); n >= 1 && (int)numbers.size() < most; n--)
+    for (int n = 1; n <= size(); n++)
         numbers.push_back(n);
+
+    // newest first by the day it was added, a song found later wins a tie
+    std::stable_sort(numbers.begin(), numbers.end(), [&](int a, int b) {
+        if (songs[a - 1].added != songs[b - 1].added)
+            return songs[a - 1].added > songs[b - 1].added;
+        return a < b;
+        });
+
+    if ((int)numbers.size() > most)
+        numbers.resize(most);
 
     return numbers;
 }
@@ -269,6 +493,7 @@ std::vector<std::string> Library::topArtists(int most) const
 {
     std::vector<std::string> names;
     std::vector<long long> score;
+    std::unordered_map<std::string, size_t> at;         // artist (small letters) -> place in names / score
 
     auto add = [&](int n, long long points) {
         const SongMeta& s = songs[n - 1];
@@ -276,13 +501,14 @@ std::vector<std::string> Library::topArtists(int most) const
         if (s.artistLow.empty() || s.artistLow == "unknown" || s.artistLow == "unknown artist")
             return;
 
-        for (size_t i = 0; i < names.size(); i++) {
-            if (lowerCase(names[i]) == s.artistLow) {
-                score[i] += points;
-                return;
-            }
+        auto found = at.find(s.artistLow);
+
+        if (found != at.end()) {
+            score[found->second] += points;
+            return;
         }
 
+        at.emplace(s.artistLow, names.size());
         names.push_back(s.artist);
         score.push_back(points);
     };

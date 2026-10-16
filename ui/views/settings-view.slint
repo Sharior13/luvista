@@ -131,6 +131,8 @@ export component SettingsView inherits Rectangle {
     in-out property <int> language-index: 0;
     in-out property <int> theme-index: 0;
     in-out property <bool> autoplay: false;
+    in-out property <bool> open-last-profile: true;
+    in property <int> removed-count: 0;
     callback account-edit();
     callback language-changed(int);
     callback autoplay-toggled(bool);
@@ -138,6 +140,8 @@ export component SettingsView inherits Rectangle {
     callback remove-folder(int);
     callback theme-changed(int);
     callback logout-clicked();
+    callback open-last-profile-toggled(bool);
+    callback manage-removed();
 
     property <bool> compact: root.width < Theme.bp-date;
     property <length> pad: root.compact ? 20px : 36px;
@@ -163,13 +167,13 @@ export component SettingsView inherits Rectangle {
             }
 
             Rectangle {
-                height: 4 * 60px + 24px + 24px;
+                height: 6 * 60px + 24px + 24px;
 
                 card := Rectangle {
                     x: root.pad;
                     y: 0px;
                     width: parent.width - 2 * root.pad;
-                    height: 4 * 60px + 24px;
+                    height: 6 * 60px + 24px;
                     border-radius: 16px;
                     background: Theme.settings-card;
 
@@ -214,6 +218,33 @@ export component SettingsView inherits Rectangle {
                                 y: (parent.height - self.height) / 2;
                                 checked <=> root.autoplay;
                                 toggled(on) => { root.autoplay-toggled(on); }
+                            }
+                        }
+
+                        //removed songs: the ones taken out of the library on purpose, with a way to bring them back
+                        SettingsRow {
+                            label: "Removed songs";
+                            hint: root.removed-count == 0 ? "No songs removed" : (root.removed-count == 1 ? "1 song removed" : "\{root.removed-count} songs removed");
+
+                            PillButton {
+                                x: parent.width - self.width - 24px;
+                                y: (parent.height - self.height) / 2;
+                                label: "Manage";
+                                icon: @image-url("../icons/trash.svg");
+                                clicked => { root.manage-removed(); }
+                            }
+                        }
+
+                        //open the profile that was used last when the app starts
+                        SettingsRow {
+                            label: "Open last profile";
+                            hint: "Skip the login screen when the app starts";
+
+                            ToggleSwitch {
+                                x: parent.width - self.width - 24px;
+                                y: (parent.height - self.height) / 2;
+                                checked <=> root.open-last-profile;
+                                toggled(on) => { root.open-last-profile-toggled(on); }
                             }
                         }
 
@@ -283,6 +314,49 @@ export component SettingsView inherits Rectangle {
                     font-size: 13px;
                     font-weight: 700;
                     overflow: elide;
+                }
+            }
+
+            //keyboard shortcuts
+            Rectangle {
+                height: 6 * 28px + 64px;
+
+                Rectangle {
+                    x: root.pad;
+                    width: parent.width - 2 * root.pad;
+                    height: parent.height - 16px;
+                    border-radius: 16px;
+                    background: Theme.settings-card;
+
+                    VerticalLayout {
+                        padding: 20px;
+                        spacing: 0px;
+
+                        Text {
+                            height: 32px;
+                            text: "Keyboard shortcuts";
+                            color: Theme.text-primary;
+                            font-size: 16px;
+                            font-weight: 800;
+                            vertical-alignment: center;
+                        }
+                        for line in [
+                            "Space  play / pause",
+                            "N / B  next / previous song",
+                            "Left / Right  back / forward 5 seconds",
+                            "Up / Down  volume   M  mute",
+                            "S  shuffle   R  repeat   L  lyrics   Q  queue",
+                            "F or F11  fullscreen   Esc  leave fullscreen or selecting"
+                        ] : Text {
+                            height: 28px;
+                            text: line;
+                            color: Theme.text-muted;
+                            font-size: 13px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                    }
                 }
             }
 

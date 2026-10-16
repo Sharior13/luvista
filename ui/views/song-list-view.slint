@@ -1,0 +1,41 @@
+﻿import { LibraryPage } from "../components/library-page.slint";
+import { SongInfo } from "../components/song-row.slint";
+import { Format } from "../format.slint";
+
+//the pages behind "Show all" on the home page: Recent Activity, Most Played and Recently Added.
+//one page layout, three uses. The first entry of the sort menu is the page's own order.
+export component SongListView inherits Rectangle {
+    in property <string> page-title;
+    in property <string> list-id;
+    in property <image> icon;
+    in property <string> first-sort;       //"Recently played", "Most played" or "Recently added"
+    in property <string> empty-text;
+    in property <[SongInfo]> songs;
+    in property <float> total-seconds;
+    callback song-clicked(int);
+    callback play-clicked();
+    callback shuffle-clicked();
+    callback search-edited(string);
+    callback sort-changed(int);
+    callback song-action(int, string);
+
+    LibraryPage {
+        page-title: root.page-title;
+        name: root.page-title;
+        subtitle: Format.songs(root.songs.length, root.total-seconds);
+        header-icon: root.icon;
+        search-placeholder: "Search \{root.page-title}";
+        sort-options: [root.first-sort, "Title", "Artist", "Length"];
+        sort-index: 0;
+        list-id: root.list-id;
+        songs: root.songs;
+        empty-text: root.empty-text;
+
+        song-clicked(i) => { root.song-clicked(i); }
+        play-clicked => { root.play-clicked(); }
+        shuffle-clicked => { root.shuffle-clicked(); }
+        search-edited(t) => { root.search-edited(t); }
+        sort-changed(i) => { root.sort-changed(i); }
+        song-action(i, id) => { root.song-action(i, id); }
+    }
+}

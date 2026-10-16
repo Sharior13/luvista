@@ -4,6 +4,7 @@
 export struct ProfileInfo {
     name: string,
     picture: image,        //empty = gradient with the profile icon
+    locked: bool,          //"Remember me" was off: the card asks for the password
 }
 
 //square card on the login screen. Children go inside; hover lightens it.
@@ -64,6 +65,7 @@ export component ActionCard inherits LoginCard {
 export component ProfileCard inherits LoginCard {
     in property <string> name;
     in property <image> picture;
+    in property <bool> locked: false;
     property <bool> has-picture: root.picture.width > 0 && root.picture.height > 0;
 
     Rectangle {
@@ -99,6 +101,18 @@ export component ProfileCard inherits LoginCard {
         color: Theme.text-primary;
         font-size: 14px;
         font-weight: 800;
+        horizontal-alignment: center;
+        overflow: elide;
+    }
+    if root.locked : Text {
+        x: 8px;
+        y: 126px;
+        width: parent.width - 16px;
+        height: 16px;
+        text: "Password needed";
+        color: Theme.control-muted;
+        font-size: 11px;
+        font-weight: 700;
         horizontal-alignment: center;
         overflow: elide;
     }

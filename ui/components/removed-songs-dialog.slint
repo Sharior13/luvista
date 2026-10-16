@@ -1,0 +1,105 @@
+﻿import { Theme } from "../theme.slint";
+import { DialogFrame, DialogButton, ButtonKind } from "dialog-frame.slint";
+import { PageScroll } from "page-scroll.slint";
+
+export struct RemovedInfo {
+    title: string,
+    artist: string,
+}
+
+//Settings > Removed songs: every song taken out of the library on purpose, each with a Restore button.
+//A restored song is added back at once, even if its folder was scanned since.
+export component RemovedSongsDialog inherits DialogFrame {
+    in property <[RemovedInfo]> songs;
+    callback restore(int);
+    callback restore-all();
+
+    title: "Removed songs";
+    card-width: 520px;
+
+    Text {
+        text: root.songs.length == 0
+            ? "Nothing was removed. Songs you remove from the library show up here."
+            : "These songs are left out when your folders are scanned. Restore the ones you want back.";
+        color: Theme.text-muted;
+        font-size: 13px;
+        font-weight: 700;
+        wrap: word-wrap;
+    }
+
+    if root.songs.length > 0 : Rectangle {
+        height: min(root.songs.length * 52px, 300px);
+        clip: true;
+
+        PageScroll {
+            VerticalLayout {
+                for s[i] in root.songs : Rectangle {
+                    height: 52px;
+                    border-radius: 10px;
+                    background: row-touch.has-hover ? Theme.nav-hover : transparent;
+
+                    row-touch := TouchArea { }
+
+                    Text {
+                        x: 12px;
+                        y: 6px;
+                        width: parent.width - 12px - 120px;
+                        height: 22px;
+                        text: s.title;
+                        color: Theme.text-primary;
+                        font-size: 15px;
+                        font-weight: 800;
+                        overflow: elide;
+                    }
+                    Text {
+                        x: 12px;
+                        y: 28px;
+                        width: parent.width - 12px - 120px;
+                        height: 18px;
+                        text: s.artist;
+                        color: Theme.text-muted;
+                        font-size: 12px;
+                        font-weight: 700;
+                        overflow: elide;
+                    }
+                    Rectangle {
+                        x: parent.width - self.width - 8px;
+                        y: (parent.height - self.height) / 2;
+                        width: 92px;
+                        height: 32px;
+                        border-radius: 10px;
+                        background: restore-touch.has-hover ? #ffffff30 : Theme.nav-hover;
+
+                        restore-touch := TouchArea {
+                            mouse-cursor: MouseCursor.pointer;
+                            clicked => { root.restore(i); }
+                        }
+                        Text {
+                            text: "Restore";
+                            color: Theme.text-primary;
+                            font-size: 14px;
+                            font-weight: 800;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    HorizontalLayout {
+        alignment: end;
+        spacing: 10px;
+
+        if root.songs.length > 1 : DialogButton {
+            label: "Restore all";
+            kind: ButtonKind.secondary;
+            clicked => { root.restore-all(); }
+        }
+        DialogButton {
+            label: "Close";
+            clicked => { root.closed(); }
+        }
+    }
+}

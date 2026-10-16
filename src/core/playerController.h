@@ -52,8 +52,10 @@ private:
 public:
     PlayerController(AudioBackend& a, TrackList& t);
 
-    void forgetSongsInside(const std::string& folder, const std::vector<std::string>& keepFolders);
     bool openFolder(const std::string& folder, bool bringBackRemoved = false);   // bringBackRemoved: the user picked this folder on purpose
+    void libraryChanged();              // after songs were added or removed behind the player's back (a scan was applied)
+    void forgetSongsInside(const std::string& folder, const std::vector<std::string>& keepFolders);
+    void bringBackRemovedInside(const std::string& folder);   // songs removed from this folder earlier may be found again by the next scan
 
     void next();
     void previous();

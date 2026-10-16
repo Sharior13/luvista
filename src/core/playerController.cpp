@@ -31,10 +31,24 @@ PlayerController::PlayerController(AudioBackend& a, TrackList& t)
 bool PlayerController::openFolder(const std::string& folder, bool bringBackRemoved)
 {
     if (bringBackRemoved)
-        tracks.restoreRemoved(folder);
+        bringBackRemovedInside(folder);
 
     tracks.scan(folder);
+    libraryChanged();
+    return tracks.getCount() > 0;
+}
 
+
+// "Add folder" is a clear wish to have these songs: the ones removed from it earlier may be found again
+void PlayerController::bringBackRemovedInside(const std::string& folder)
+{
+    tracks.restoreRemovedInside(folder);
+}
+
+
+// The library gained or lost songs (a scan was applied): numbers can move, so everything that remembers one is looked at again.
+void PlayerController::libraryChanged()
+{
     // the scan forgets songs whose file is gone and numbers can move, so find the playing song again
     if (currentId != 0) {
         current = tracks.positionOfId(currentId);
@@ -59,7 +73,6 @@ bool PlayerController::openFolder(const std::string& folder, bool bringBackRemov
     }
 
     findPos();
-    return tracks.getCount() > 0;
 }
 
 

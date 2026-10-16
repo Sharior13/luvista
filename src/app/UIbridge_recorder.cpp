@@ -83,19 +83,25 @@ void UiBridge::tickRecorder()
 void UiBridge::refreshRecordings()
 {
     std::vector<int> rows = recordings.rows(recordingSearch, recordingSort);
-    std::vector<SongInfo> infos;
 
     shown[RECORDINGS] = rows;
+    keepSelection(RECORDINGS, (int)rows.size());
 
-    for (int row : rows) {
+    auto numbers = std::make_shared<std::vector<int>>(rows);
+
+    auto model = std::make_shared<LazyModel<SongInfo>>((int)numbers->size(), [this, numbers](int index) {
+        int row = (*numbers)[index];
         SongInfo info;
+
         info.title = toSlint(recordings.title(row));
         info.artist = "Voice memo";
         info.date_added = toSlint(UiConvert::ago(recordings.added(row)));
         info.length = toSlint(UiConvert::lengthText(recordings.seconds(row)));
-        infos.push_back(info);
-    }
+        info.selected = selectionPage == (int)RECORDINGS && selection.contains(index);
+        return info;
+        });
 
-    state().set_recordings(std::make_shared<slint::VectorModel<SongInfo>>(infos));
+    models[RECORDINGS] = model;
+    state().set_recordings(model);
     state().set_recordings_count(recordings.count());
 }

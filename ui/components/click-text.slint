@@ -1,0 +1,43 @@
+﻿import { Theme } from "../theme.slint";
+
+//text that goes somewhere when clicked (an artist, an album). It is underlined while the mouse is on it and only
+//as wide as the text, so the empty space next to it still belongs to whatever is behind it (the row, the card).
+export component ClickText inherits Rectangle {
+    in property <string> text;
+    in property <color> tint: Theme.text-primary;
+    in property <length> font-size: 14px;
+    in property <int> font-weight: 700;
+    in property <bool> enabled: true;          //false: plain text, no hover, no click
+    callback clicked();
+
+    min-width: 0px;
+    preferred-width: label.preferred-width;
+    horizontal-stretch: 0;
+
+    label := Text {
+        width: 100%;
+        height: 100%;
+        text: root.text;
+        color: root.tint;
+        font-size: root.font-size;
+        font-weight: root.font-weight;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    //underline, as long as the text that is really drawn
+    Rectangle {
+        visible: root.enabled && touch.has-hover;
+        x: 0px;
+        y: parent.height / 2 + root.font-size * 0.62;
+        width: Math.min(label.preferred-width, parent.width);
+        height: 1px;
+        background: root.tint;
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+        clicked => { root.clicked(); }
+    }
+}

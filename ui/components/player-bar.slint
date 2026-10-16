@@ -1,6 +1,8 @@
 ﻿import { Theme } from "../theme.slint";
 import { BarSlider } from "bar-slider.slint";
 import { AddToPlaylistMenu, PlaylistChoice } from "add-to-playlist.slint";
+import { ClickText } from "click-text.slint";
+import { Nav } from "../navigation.slint";
 
 //small icon button, only the icon area is clickable
 component IconButton inherits Rectangle {
@@ -52,6 +54,7 @@ export component PlayerBar inherits Rectangle {
     //track info
     in property <string> title;
     in property <string> artist;
+    in property <string> album;         //album of the song, "" = unknown
     in property <image> cover-art;      //empty -> pink gradient circle
 
     //playback state, in seconds
@@ -164,13 +167,31 @@ export component PlayerBar inherits Rectangle {
                                     overflow: elide;
                                 }
 
-                                //song artist
-                                Text {
-                                    text: root.artist;
-                                    color: Theme.text-muted;
-                                    font-size: 14px;
-                                    font-weight: 700;
-                                    overflow: elide;
+                                //song artist and album, each opens its own page
+                                HorizontalLayout {
+                                    spacing: 6px;
+                                    alignment: start;
+                                    height: 20px;
+
+                                    ClickText {
+                                        text: root.artist;
+                                        tint: Theme.text-muted;
+                                        font-size: 14px;
+                                        enabled: root.artist != "" && root.artist != "Unknown artist" && root.artist != "Voice memo";
+                                        clicked => { Nav.open-artist(root.artist); }
+                                    }
+                                    if root.album != "" && root.album != "Unknown album" : Text {
+                                        text: "\u{2022}";
+                                        color: Theme.text-muted;
+                                        font-size: 14px;
+                                        vertical-alignment: center;
+                                    }
+                                    if root.album != "" && root.album != "Unknown album" : ClickText {
+                                        text: root.album;
+                                        tint: Theme.text-muted;
+                                        font-size: 14px;
+                                        clicked => { Nav.open-album(root.album); }
+                                    }
                                 }
                             }
                         }

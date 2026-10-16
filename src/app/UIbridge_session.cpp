@@ -72,7 +72,8 @@ void UiBridge::refreshCards()
     for (const std::string& name : profileCards) {
         ProfileInfo card;
         card.name = toSlint(name);
-        card.picture = images.file(session.pictureOf(name));    // empty: the screen draws a gradient with the icon
+        card.picture = images.file(session.pictureOf(name));    // empty: the screen draws a gradient
+        card.locked = session.isLocked(name);                   // "Remember me" was off: the card asks for the password with the icon
         cards.push_back(card);
     }
 
@@ -109,10 +110,10 @@ void UiBridge::enterProfile()
     recordings.refresh();
 
     openPlaylist = -1;
-    library.resetPage(Page::AllSongs);
-    library.resetPage(Page::Favorites);
-    library.resetPage(Page::Playlist);
-    library.resetPage(Page::Artist);
+    for (int page = 0; page < (int)Page::Count; page++)
+        library.resetPage((Page)page);
+
+    endSelecting();
     recordingSearch = "";
     recordingSort = 0;
 
@@ -125,8 +126,28 @@ void UiBridge::enterProfile()
     refreshAll();
     syncPlayerBar(true);                         // also fills the home page, the queue and the heart
 
+    launch.remember(session.isGuest() ? "" : session.name(), session.isGuest());   // the next start opens this profile again
+
     sessionState().set_error("");
     sessionState().set_logged_in(true);
+}
+
+
+// At start: open the profile that was used last, if that is allowed. A profile that wants its password (Remember me off)
+// is not opened this way, and a profile that is gone is not either: the login screen shows as usual.
+void UiBridge::openLastProfile()
+{
+    if (!launch.openLast() || !launch.hasLast())
+        return;
+
+    if (launch.lastWasGuest()) {
+        session.startGuest();
+        enterProfile();
+        return;
+    }
+
+    if (session.select(launch.lastProfile()))
+        enterProfile();
 }
 
 
@@ -145,6 +166,7 @@ void UiBridge::leaveProfile()
     player.setShuffle(false);
     player.setRepeatMode(0);
     session.signOut();
+    launch.forget();                             // logged out on purpose: the next start shows the login screen
 
     state().set_playing(false);
     state().set_position(0);
@@ -193,6 +215,20 @@ void UiBridge::connectAccount()
 // the Settings page. The choices are saved by Settings, the player is told about the ones it must follow
 void UiBridge::connectSettings()
 {
+    state().on_open_last_profile_toggled([this](bool on) { launch.setOpenLast(on); });
+
+    state().on_restore_removed([this](int index) {
+        tracks.restoreRemoved(index);
+        player.libraryChanged();
+        reloadLibrary();
+        });
+
+    state().on_restore_all_removed([this] {
+        tracks.restoreAllRemoved();
+        player.libraryChanged();
+        reloadLibrary();
+        });
+
     state().on_autoplay_toggled([this](bool on) {
         settings.setAutoplay(on);
         player.setAutoplay(on);
