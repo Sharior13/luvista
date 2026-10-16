@@ -1,6 +1,7 @@
 ﻿import { LibraryPage } from "../components/library-page.slint";
 import { SongInfo } from "../components/song-row.slint";
 import { Format } from "../format.slint";
+import { AppState } from "../state.slint";
 
 //all songs page. shows every song found in the music folders
 export component SongsView inherits Rectangle {
@@ -23,8 +24,8 @@ export component SongsView inherits Rectangle {
         length-label: "Length";
         list-id: "songs";
         songs: root.songs;
-        empty-text: "No songs found. Go to settings to ";
-        empty-link: "add a new folder";
+        empty-text: AppState.scanning ? "Looking for songs..." : "No songs found. Go to settings to ";
+        empty-link: AppState.scanning ? "" : "add a new folder";
 
         song-clicked(i) => { root.song-clicked(i); }
         play-clicked => { root.play-clicked(); }

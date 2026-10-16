@@ -18,6 +18,9 @@ export component RecordingsView inherits Rectangle {
         header-icon: @image-url("../icons/lyrics.svg");
         search-placeholder: "Search Recordings";
         show-play: false;
+        show-album-column: false;       //a voice memo has no album
+        links: false;
+        sort-index: 0;                  //newest first
         action-label: "Start Recording";
         action-icon: @image-url("../icons/record.svg");
         row-icon: @image-url("../icons/lyrics.svg");

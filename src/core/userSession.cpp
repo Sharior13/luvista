@@ -25,11 +25,17 @@ bool UserSession::select(const std::string& name)
 {
     std::string actual = profiles.find(name);
 
-    if (actual == "")
-        return false;
+    if (actual == "" || profiles.needsPassword(actual))
+        return false;                                  // a locked card is opened with signIn(), never by a click alone
 
     enter(actual);
     return true;
+}
+
+
+bool UserSession::isLocked(const std::string& name) const
+{
+    return profiles.needsPassword(name);
 }
 
 

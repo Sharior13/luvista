@@ -1,6 +1,8 @@
 ﻿import { Theme } from "../theme.slint";
 import { CoverArt } from "cover-art.slint";
 import { SongMenu } from "song-menu.slint";
+import { ClickText } from "click-text.slint";
+import { Nav } from "../navigation.slint";
 
 //one song in a list. The backend formats date-added and length as text.
 export struct SongInfo {
@@ -12,6 +14,7 @@ export struct SongInfo {
     art: image,            //album art, empty = gradient placeholder
     favorite: bool,        //the song is a favorite (the "..." menu offers Add / Remove)
     queued: bool,          //the song is in the queue (the "..." menu offers Remove from queue)
+    selected: bool,        //ticked while several songs are being selected
 }
 
 //one row of a song list: number, art + title/artist, album, date added and length.
@@ -23,19 +26,26 @@ export component SongRow inherits Rectangle {
     in property <bool> show-album: true;
     in property <bool> show-date: true;
     in property <bool> show-more: true;    //the "..." button at the end of the row
+    in property <bool> select-mode: false; //a tick box takes the place of the number
+    in property <bool> links: true;        //artist and album are clickable (not for recordings)
     in property <string> context: "songs"; //page the row is on, decides what the "..." menu offers
-    callback clicked();
+    callback clicked(bool, bool);          //ctrl held, shift held
     callback action(string);               //an entry of the "..." menu, see song-menu.slint
 
     height: Theme.row-height;
     border-radius: 8px;
     property <bool> hot: touch.has-hover || menu.hovered;
-    background: root.hot ? Theme.nav-hover : transparent;
+    background: root.song.selected ? #ffffff2e : (root.hot ? Theme.nav-hover : transparent);
     animate background { duration: Theme.anim-fast; }
 
     touch := TouchArea {
         mouse-cursor: MouseCursor.pointer;
-        clicked => { root.clicked(); }
+        //a click is the button going up while the mouse is still on the row, so ctrl and shift can be read
+        pointer-event(e) => {
+            if (e.button == PointerEventButton.left && e.kind == PointerEventKind.up && self.has-hover) {
+                root.clicked(e.modifiers.control, e.modifiers.shift);
+            }
+        }
     }
 
     HorizontalLayout {
@@ -47,7 +57,7 @@ export component SongRow inherits Rectangle {
             width: Theme.col-index;
 
             Text {
-                visible: !root.hot;
+                visible: !root.hot && !root.select-mode;
                 text: "\{root.index + 1}";
                 color: Theme.text-primary;
                 font-size: 15px;
@@ -55,8 +65,29 @@ export component SongRow inherits Rectangle {
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
+            //tick box while selecting
+            Rectangle {
+                visible: root.select-mode;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                width: 20px;
+                height: 20px;
+                border-radius: 4px;
+                background: root.song.selected ? Theme.toggle-on : transparent;
+                border-width: root.song.selected ? 0px : 2px;
+                border-color: Theme.control-muted;
+
+                if root.song.selected : Image {
+                    source: @image-url("../icons/check.svg");
+                    colorize: Theme.text-primary;
+                    width: 14px;
+                    height: 14px;
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                }
+            }
             Image {
-                visible: root.hot;
+                visible: root.hot && !root.select-mode;
                 source: @image-url("../icons/play.svg");
                 colorize: Theme.text-primary;
                 width: 18px;
@@ -96,12 +127,16 @@ export component SongRow inherits Rectangle {
                     font-weight: 700;
                     overflow: elide;
                 }
-                Text {
-                    text: root.song.artist;
-                    color: Theme.text-muted;
-                    font-size: 13px;
-                    font-weight: 700;
-                    overflow: elide;
+                HorizontalLayout {
+                    alignment: start;
+
+                    ClickText {
+                        text: root.song.artist;
+                        tint: Theme.text-muted;
+                        font-size: 13px;
+                        enabled: root.links && root.song.artist != "" && root.song.artist != "Unknown artist";
+                        clicked => { Nav.open-artist(root.song.artist); }
+                    }
                 }
             }
         }
@@ -109,16 +144,20 @@ export component SongRow inherits Rectangle {
         //album
         if root.show-album : Rectangle {
             width: Theme.col-album;
-            Text {
+            HorizontalLayout {
                 x: 8px;
                 width: parent.width - 16px;
                 height: parent.height;
-                text: root.song.album == "" ? "-" : root.song.album;
-                color: Theme.text-primary;
-                font-size: 15px;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-                overflow: elide;
+                alignment: center;
+
+                ClickText {
+                    text: root.song.album == "" ? "-" : root.song.album;
+                    tint: Theme.text-primary;
+                    font-size: 15px;
+                    font-weight: 400;
+                    enabled: root.links && root.song.album != "" && root.song.album != "Unknown album";
+                    clicked => { Nav.open-album(root.song.album); }
+                }
             }
         }
 

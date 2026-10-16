@@ -1,10 +1,11 @@
 ﻿import { Session } from "session.slint";
 import { LoginView } from "views/login-view.slint";
 import { AppShell } from "views/app-shell.slint";
-import { AppState } from "state.slint";
+import { AppState, DialogKind } from "state.slint";
 
 //everything the C++ side needs: ui->global<AppState>() and the types used by its lists
-export { AppState, DialogKind, TrackInfo, PlaylistInfo, NavSection, SongInfo, PlaylistChoice, LyricLine, ArtistInfo, RecordState } from "state.slint";
+export { AppState, DialogKind, TrackInfo, PlaylistInfo, NavSection, SongInfo, PlaylistChoice, LyricLine, ArtistInfo, AlbumInfo, RemovedInfo, RecordState } from "state.slint";
+export { Nav } from "navigation.slint";
 export { MockData } from "mock-data.slint";
 export { Session } from "session.slint";
 export { ProfileInfo } from "components/login-card.slint";
@@ -23,7 +24,119 @@ export component AppWindow inherits Window {
     //the fullscreen button in the player bar toggles this
     full-screen <=> AppState.fullscreen;
 
-    //login gate
-    if !Session.logged-in : LoginView {}
-    if Session.logged-in : AppShell {}
+    //keys that work everywhere in the app. Anything a text box does not use on its own (Escape, F11) comes up here.
+    forward-focus: key-scope;
+    property <float> volume-before-mute: 0.7;
+
+    //a window closing leaves no box with the keyboard focus: take it back so Escape and F11 keep working
+    property <DialogKind> dialog: AppState.dialog;
+    changed dialog => { if (self.dialog == DialogKind.none) { key-scope.focus(); } }
+    property <bool> signed-in: Session.logged-in;
+    changed signed-in => { key-scope.focus(); }
+
+    key-scope := FocusScope {
+        key-pressed(e) => {
+            //F11 turns fullscreen on and off
+            if (e.text == Key.F11) {
+                AppState.fullscreen = !AppState.fullscreen;
+                return accept;
+            }
+            //Escape leaves fullscreen, or, when not in fullscreen, leaves selecting songs. Otherwise it only
+            //takes the keyboard out of a text box, so the shortcuts below work again
+            if (e.text == Key.Escape) {
+                //an open window closes first (not the recorder: it may be recording)
+                if (AppState.dialog != DialogKind.none && AppState.dialog != DialogKind.recorder) {
+                    AppState.dialog = DialogKind.none;
+                    AppState.dialog-text = "";
+                    AppState.dialog-error = "";
+                    AppState.create-with = "";
+                    return accept;
+                }
+                if (AppState.fullscreen) {
+                    AppState.fullscreen = false;
+                    return accept;
+                }
+                if (AppState.select-mode) {
+                    AppState.select-mode-toggled(false);
+                    return accept;
+                }
+                key-scope.focus();
+                return accept;
+            }
+
+            //player shortcuts. A text box handles its own letters, so these only fire when no box has the keyboard.
+            //Not while a window is open, not on the login screen, not with Ctrl / Alt / Windows held.
+            if (!Session.logged-in || AppState.dialog != DialogKind.none || e.modifiers.control || e.modifiers.alt || e.modifiers.meta) {
+                return reject;
+            }
+            if (e.text == " ") {
+                AppState.playing = !AppState.playing;
+                AppState.toggle-play();
+                return accept;
+            }
+            if (e.text == "n" || e.text == "N") {
+                AppState.next();
+                return accept;
+            }
+            if (e.text == "b" || e.text == "B") {
+                AppState.previous();
+                return accept;
+            }
+            if (e.text == Key.RightArrow) {
+                AppState.seek(Math.min(AppState.duration, AppState.position + 5));
+                return accept;
+            }
+            if (e.text == Key.LeftArrow) {
+                AppState.seek(Math.max(0, AppState.position - 5));
+                return accept;
+            }
+            if (e.text == Key.UpArrow) {
+                AppState.volume = Math.min(1.0, AppState.volume + 0.05);
+                AppState.volume-changed(AppState.volume);
+                return accept;
+            }
+            if (e.text == Key.DownArrow) {
+                AppState.volume = Math.max(0.0, AppState.volume - 0.05);
+                AppState.volume-changed(AppState.volume);
+                return accept;
+            }
+            if (e.text == "m" || e.text == "M") {
+                if (AppState.volume > 0.0) {
+                    root.volume-before-mute = AppState.volume;
+                    AppState.volume = 0.0;
+                } else {
+                    AppState.volume = root.volume-before-mute;
+                }
+                AppState.volume-changed(AppState.volume);
+                return accept;
+            }
+            if (e.text == "s" || e.text == "S") {
+                AppState.shuffle-clicked();
+                return accept;
+            }
+            if (e.text == "r" || e.text == "R") {
+                AppState.repeat-clicked();
+                return accept;
+            }
+            if (e.text == "l" || e.text == "L") {
+                AppState.lyrics-open = !AppState.lyrics-open;
+                AppState.lyrics-toggled(AppState.lyrics-open);
+                return accept;
+            }
+            if (e.text == "q" || e.text == "Q") {
+                AppState.queue-open = !AppState.queue-open;
+                AppState.queue-toggled(AppState.queue-open);
+                return accept;
+            }
+            if (e.text == "f" || e.text == "F") {
+                AppState.fullscreen = !AppState.fullscreen;
+                return accept;
+            }
+            return reject;
+        }
+
+        //login gate
+        if !Session.logged-in : LoginView {}
+        if Session.logged-in : AppShell {}
+    }
 }

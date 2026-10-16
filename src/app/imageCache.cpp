@@ -41,7 +41,7 @@ slint::Image ImageCache::cover(int number)
     auto found = coverPaths.find(id);
 
     if (found == coverPaths.end())
-        found = coverPaths.insert({ id, CoverArt::forSong(id, tracks.getTrack(number)) }).first;
+        found = coverPaths.insert({ id, CoverArt::forSong(tracks.getTrack(number), tracks.getFolder()) }).first;
 
     return file(found->second);
 }

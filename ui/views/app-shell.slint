@@ -23,6 +23,11 @@ import { RecordingsView } from "recordings-view.slint";
 import { PlaylistView } from "playlist-view.slint";
 import { ArtistView } from "artist-view.slint";
 import { ProfileView } from "profile-view.slint";
+import { AlbumsView } from "albums-view.slint";
+import { ArtistsView } from "artists-view.slint";
+import { RemovedSongsDialog } from "../components/removed-songs-dialog.slint";
+import { AlbumView } from "album-view.slint";
+import { SongListView } from "song-list-view.slint";
 import { SettingsView } from "settings-view.slint";
 
 export component AppShell inherits Rectangle {
@@ -33,7 +38,25 @@ export component AppShell inherits Rectangle {
     changed height => { Viewport.window-height = root.height; }
 
     //song a "..." menu entry is about, as it is shown in its list right now
+    //Opening any other page puts the lyrics page away. This also catches pages the program switches to by itself
+    //(a click on an artist name, a search).
+    property <NavSection> page: AppState.section;
+    property <int> playlist-page: AppState.selected-playlist;
+    changed page => { root.close-lyrics(); }
+    changed playlist-page => { root.close-lyrics(); }
+
+    function close-lyrics() {
+        if (AppState.lyrics-open) {
+            AppState.lyrics-open = false;
+            AppState.lyrics-toggled(false);
+        }
+    }
+
     function song-at(list: string, i: int) -> SongInfo {
+        if (list == "album") { return AppState.album-songs[i]; }
+        if (list == "recent") { return AppState.recent-songs[i]; }
+        if (list == "most-played") { return AppState.most-played-songs[i]; }
+        if (list == "recently-added") { return AppState.recently-added-songs[i]; }
         if (list == "songs") { return AppState.songs[i]; }
         if (list == "favorites") { return AppState.favorites[i]; }
         if (list == "recordings") { return AppState.recordings[i]; }
@@ -92,7 +115,10 @@ export component AppShell inherits Rectangle {
 
     //an entry of a row's "..." menu. A few open a window, view-artist changes page, the rest go to the backend
     function song-action(list: string, i: int, id: string) {
-        if (id == "view-artist") {
+        //the "..." menu of a ticked row works on every ticked song
+        if (AppState.selected-count > 1 && song-at(list, i).selected && id != "view-artist" && id != "show-file") {
+            AppState.selection-action(list, id);
+        } else if (id == "view-artist") {
             open-artist(song-at(list, i).artist);
         } else if (id == "add-playlist") {
             AppState.pending-list = list;
@@ -104,6 +130,7 @@ export component AppShell inherits Rectangle {
             AppState.pending-list = list;
             AppState.pending-row = i;
             AppState.pending-title = song-at(list, i).title;
+            AppState.pending-count = 1;
             AppState.dialog = DialogKind.delete-song;
         } else {
             AppState.song-menu-action(list, i, id);
@@ -132,6 +159,8 @@ export component AppShell inherits Rectangle {
             songs-count: AppState.songs-count;
             favorites-count: AppState.favorites-count;
             recordings-count: AppState.recordings-count;
+            albums-count: AppState.albums-count;
+            artists-count: AppState.artists-count;
             playlists: AppState.playlists;
 
             section-changed(s) => { AppState.section-changed(s); }
@@ -237,6 +266,93 @@ export component AppShell inherits Rectangle {
                 sort-changed(i) => { AppState.list-sort-changed("artist", i); }
             }
 
+            //artists page, a grid of every artist
+            if AppState.section == NavSection.artists && AppState.selected-playlist < 0 : ArtistsView {
+                artists: AppState.artists;
+
+                artist-clicked(i) => { AppState.artist-tile-clicked(i); }
+                search-edited(t) => { AppState.artists-search-changed(t); }
+                sort-changed(i) => { AppState.artists-sort-changed(i); }
+            }
+
+            //albums page, a grid of every album
+            if AppState.section == NavSection.albums && AppState.selected-playlist < 0 : AlbumsView {
+                albums: AppState.albums;
+
+                album-clicked(i) => { AppState.album-clicked(i); }
+                search-edited(t) => { AppState.albums-search-changed(t); }
+                sort-changed(i) => { AppState.albums-sort-changed(i); }
+            }
+
+            //one album, from an album name or a tile of the albums page
+            if AppState.section == NavSection.album && AppState.selected-playlist < 0 : AlbumView {
+                name: AppState.album-name;
+                subtitle: AppState.album-subtitle;
+                art: AppState.album-art;
+                songs: AppState.album-songs;
+                total-seconds: AppState.album-seconds;
+
+                song-clicked(i) => { AppState.song-clicked("album", i); }
+                song-action(i, id) => { root.song-action("album", i, id); }
+                play-clicked => { AppState.play-list("album"); }
+                shuffle-clicked => { AppState.shuffle-list("album"); }
+                sort-changed(i) => { AppState.list-sort-changed("album", i); }
+            }
+
+            //"Show all" of Recent Activity
+            if AppState.section == NavSection.recent && AppState.selected-playlist < 0 : SongListView {
+                page-title: "Recent Activity";
+                list-id: "recent";
+                icon: @image-url("../icons/queue.svg");
+                first-sort: "Recently played";
+                empty-text: "No Recent Activity yet. Play some music to see recent activity";
+                songs: AppState.recent-songs;
+                total-seconds: AppState.recent-seconds;
+
+                song-clicked(i) => { AppState.song-clicked("recent", i); }
+                song-action(i, id) => { root.song-action("recent", i, id); }
+                play-clicked => { AppState.play-list("recent"); }
+                shuffle-clicked => { AppState.shuffle-list("recent"); }
+                search-edited(t) => { AppState.list-search-changed("recent", t); }
+                sort-changed(i) => { AppState.list-sort-changed("recent", i); }
+            }
+
+            //"Show all" of Most Played
+            if AppState.section == NavSection.most-played && AppState.selected-playlist < 0 : SongListView {
+                page-title: "Most Played";
+                list-id: "most-played";
+                icon: @image-url("../icons/heart.svg");
+                first-sort: "Most played";
+                empty-text: "Nothing played yet. Your most played songs will show up here";
+                songs: AppState.most-played-songs;
+                total-seconds: AppState.most-played-seconds;
+
+                song-clicked(i) => { AppState.song-clicked("most-played", i); }
+                song-action(i, id) => { root.song-action("most-played", i, id); }
+                play-clicked => { AppState.play-list("most-played"); }
+                shuffle-clicked => { AppState.shuffle-list("most-played"); }
+                search-edited(t) => { AppState.list-search-changed("most-played", t); }
+                sort-changed(i) => { AppState.list-sort-changed("most-played", i); }
+            }
+
+            //"Show all" of Recently Added
+            if AppState.section == NavSection.recently-added && AppState.selected-playlist < 0 : SongListView {
+                page-title: "Recently Added";
+                list-id: "recently-added";
+                icon: @image-url("../icons/music.svg");
+                first-sort: "Recently added";
+                empty-text: "Nothing added yet. Songs you add will show up here";
+                songs: AppState.recently-added-songs;
+                total-seconds: AppState.recently-added-seconds;
+
+                song-clicked(i) => { AppState.song-clicked("recently-added", i); }
+                song-action(i, id) => { root.song-action("recently-added", i, id); }
+                play-clicked => { AppState.play-list("recently-added"); }
+                shuffle-clicked => { AppState.shuffle-list("recently-added"); }
+                search-edited(t) => { AppState.list-search-changed("recently-added", t); }
+                sort-changed(i) => { AppState.list-sort-changed("recently-added", i); }
+            }
+
             //profile page, from the avatar popup
             if AppState.section == NavSection.profile && AppState.selected-playlist < 0 : ProfileView {
                 name: AppState.profile-name;
@@ -244,7 +360,10 @@ export component AppShell inherits Rectangle {
                 playlist-count: AppState.playlists.length;
                 song-count: AppState.songs-count;
                 top-artists: AppState.top-artists;
+                top-songs: AppState.top-songs;
 
+                top-song-clicked(i) => { AppState.top-song-clicked(i); }
+                show-most-played => { AppState.show-all("most-played"); }
                 settings-clicked => { root.open-page(NavSection.settings); }
                 edit-clicked => { AppState.dialog = DialogKind.edit-account; }
                 picture-clicked => { AppState.change-profile-picture(); }
@@ -263,7 +382,11 @@ export component AppShell inherits Rectangle {
                 language-index <=> AppState.language-index;
                 theme-index <=> AppState.theme-index;
                 autoplay <=> AppState.autoplay;
+                open-last-profile <=> AppState.open-last-profile;
+                removed-count: AppState.removed-songs.length;
 
+                manage-removed => { AppState.dialog = DialogKind.removed-songs; }
+                open-last-profile-toggled(on) => { AppState.open-last-profile-toggled(on); }
                 account-edit => { AppState.dialog = DialogKind.edit-account; }
                 language-changed(i) => { AppState.language-changed(i); }
                 theme-changed(i) => { AppState.theme-changed(i); }
@@ -349,6 +472,7 @@ export component AppShell inherits Rectangle {
     PlayerBar {
         title: AppState.title;
         artist: AppState.artist;
+        album: AppState.album;
         cover-art: AppState.cover-art;
         position: AppState.position;
         duration: AppState.duration;
@@ -466,16 +590,33 @@ export component AppShell inherits Rectangle {
         new-playlist => { root.new-playlist-dialog("song"); }
     }
 
+    if AppState.dialog == DialogKind.removed-songs : RemovedSongsDialog {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        songs: AppState.removed-songs;
+
+        closed => { root.close-dialog(); }
+        restore(i) => { AppState.restore-removed(i); }
+        restore-all => { AppState.restore-all-removed(); }
+    }
+
     if AppState.dialog == DialogKind.delete-song : ConfirmDialog {
         x: 0px;
         y: 0px;
         width: parent.width;
         height: parent.height;
         property <bool> recording: AppState.pending-list == "recordings";
-        title: self.recording ? "Delete recording?" : "Remove from library?";
+        property <bool> several: AppState.pending-count > 1;
+        title: self.recording ? (self.several ? "Delete recordings?" : "Delete recording?") : "Remove from library?";
         message: self.recording
-            ? "\"\{AppState.pending-title}\" will be deleted from your computer. This cannot be undone."
-            : "\"\{AppState.pending-title}\" will be removed from your library. The file stays on your computer.";
+            ? (self.several
+                ? "\{AppState.pending-count} recordings will be deleted from your computer. This cannot be undone."
+                : "\"\{AppState.pending-title}\" will be deleted from your computer. This cannot be undone.")
+            : (self.several
+                ? "\{AppState.pending-count} songs will be removed from your library. The files stay on your computer. You can bring them back in Settings > Removed songs."
+                : "\"\{AppState.pending-title}\" will be removed from your library. The file stays on your computer. You can bring it back in Settings > Removed songs.");
         confirm-label: self.recording ? "Delete" : "Remove";
 
         closed => { root.close-dialog(); }

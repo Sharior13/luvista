@@ -8,13 +8,30 @@
 // Everything the song pages need to KNOW about the library, without any screen in it:
 // the facts about each song, which songs a page holds, and how search and sort treat them.
 // The user interface only shows what this class gives back.
-enum class Page { AllSongs, Favorites, Playlist, Artist };
+enum class Page { AllSongs, Favorites, Playlist, Artist, Album, Recent, MostPlayed, RecentlyAdded, Count };
 
 struct SongMeta {
     std::string title, artist, album;
     std::string titleLow, artistLow, albumLow;      // the same in small letters, for searching and sorting
     long long added = 0;                            // seconds since 1970
     double seconds = 0;                             // length
+};
+
+// One album of the Albums page: the songs that share an album name (songs without an album are not an album).
+struct AlbumEntry {
+    std::string name;
+    std::string artist;         // the artist of its songs, or "Various artists" when they differ
+    int songs = 0;
+    double seconds = 0;
+    int firstSong = 0;          // a song number of the album, its picture stands for the album
+    long long added = 0;        // when its newest song was added
+};
+
+// One artist of the Artists page.
+struct ArtistEntry {
+    std::string name;
+    int songs = 0;
+    int firstSong = 0;
 };
 
 struct PageResult {
@@ -35,19 +52,34 @@ public:
     std::string path(int songNumber) const;
 
     // --- pages. Each page has its own search text and sort; opening a page starts them fresh.
-    // sort: 0 = recently added, 1 = title, 2 = artist, 3 = length
+    // sort: 0 = the page's own order (recently added, recently played, most played ...), 1 = title, 2 = artist, 3 = length
+    // A page opens sorted by title, except Recent, MostPlayed and RecentlyAdded: their order IS their point.
+    static int defaultSort(Page page);
     void setSearch(Page page, const std::string& text);
     void setSort(Page page, int sort);
     void resetPage(Page page);
     void setPlaylist(const std::string& name);  // which playlist the Playlist page shows
     void setArtist(const std::string& name);    // which artist the Artist page shows
+    void setAlbum(const std::string& name);     // which album the Album page shows
     void setEverywhereSearch(const std::string& text);   // the search box in the top bar ("" ends it)
 
     PageResult build(Page page) const;
     std::string queueName(Page page) const;     // what the queue panel calls the page: "Favorites", a playlist name ...
     const std::string& playlistName() const;
     const std::string& artistName() const;
+    const std::string& albumName() const;
     bool searchingEverywhere() const;
+
+    // --- the Artists page. sort: 0 = name, 1 = most songs
+    std::vector<ArtistEntry> artists(const std::string& search, int sort) const;
+    int artistCount() const;
+
+    // --- the Albums page (all albums, with the search text and sort of that page)
+    // sort: 0 = name, 1 = artist, 2 = recently added
+    std::vector<AlbumEntry> albums(const std::string& search, int sort) const;
+    int albumCount() const;
+    std::vector<int> songsOfAlbum(const std::string& name) const;
+    std::string albumArtist(const std::string& name) const;     // see AlbumEntry::artist
 
     // --- the home page and the profile page
     std::vector<int> recentlyAdded(int most) const;         // newest first
@@ -66,17 +98,18 @@ private:
     TrackList& tracks;
 
     std::vector<SongMeta> songs;                // songs[0] is song number 1
-    std::unordered_map<int, double> lengthOfId; // song id -> seconds, so reload() does not read every file again
 
     struct PageState {
         std::string search;
-        int sort = 0;
+        int sort = 1;
     };
-    PageState pages[4];
+    PageState pages[(int)Page::Count];
     std::string everywhere;                     // the top bar search, small letters
     std::string playlist;
     std::string artistKey;                      // small letters
     std::string artist;
+    std::string albumKey;                       // small letters
+    std::string album;
 
     std::vector<int> source(Page page) const;   // the song numbers of a page before search and sort
 };

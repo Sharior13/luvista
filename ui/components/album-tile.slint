@@ -1,0 +1,80 @@
+﻿import { Theme } from "../theme.slint";
+import { ClickText } from "click-text.slint";
+import { Nav } from "../navigation.slint";
+
+export struct AlbumInfo {
+    name: string,
+    artist: string,
+    art: image,            //empty = gradient placeholder
+    songs: int,
+}
+
+//square album picture with the name and the artist underneath (the Albums page)
+export component AlbumTile inherits Rectangle {
+    in property <AlbumInfo> album;
+    callback clicked();
+
+    height: self.width + 58px;
+    border-radius: 12px;
+    background: touch.has-hover ? Theme.nav-hover : transparent;
+    animate background { duration: Theme.anim-fast; }
+
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.clicked(); }
+    }
+
+    Rectangle {
+        x: 8px;
+        y: 8px;
+        width: parent.width - 16px;
+        height: self.width;
+        border-radius: 10px;
+        clip: true;
+        background: Theme.art-gradient;
+
+        Image {
+            source: @image-url("../icons/album.svg");
+            colorize: Theme.text-primary;
+            width: parent.width * 0.4;
+            height: self.width;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            opacity: root.album.art.width > 0 ? 0.0 : 0.85;
+        }
+        Image {
+            source: root.album.art;
+            width: 100%;
+            height: 100%;
+            image-fit: cover;
+        }
+    }
+
+    Text {
+        x: 8px;
+        y: 8px + (parent.width - 16px) + 6px;
+        width: parent.width - 16px;
+        height: 22px;
+        text: root.album.name;
+        color: Theme.text-primary;
+        font-size: 14px;
+        font-weight: 800;
+        overflow: elide;
+    }
+
+    HorizontalLayout {
+        x: 8px;
+        y: 8px + (parent.width - 16px) + 28px;
+        width: parent.width - 16px;
+        height: 20px;
+        alignment: start;
+
+        ClickText {
+            text: root.album.artist;
+            tint: Theme.text-muted;
+            font-size: 13px;
+            enabled: root.album.artist != "Various artists" && root.album.artist != "Unknown artist" && root.album.artist != "";
+            clicked => { Nav.open-artist(root.album.artist); }
+        }
+    }
+}

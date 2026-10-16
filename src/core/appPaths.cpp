@@ -62,6 +62,12 @@ std::string AppPaths::removedFile()
 }
 
 
+std::string AppPaths::launchFile()
+{
+    return (fs::path(root()) / "launch.dat").string();
+}
+
+
 std::string AppPaths::profilesFolder()
 {
     return makeFolder(fs::path(root()) / "profiles");

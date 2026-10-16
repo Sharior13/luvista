@@ -4,6 +4,7 @@
 export component PageScroll inherits Rectangle {
     in property <bool> show-scrollbar: true;
     in property <length> bar-offset: 0px;   //pushes the scrollbar sideways, past the right edge of the content
+    out property <length> scroll-y: -flick.content-y;   //how far the content is scrolled up. Long lists use it to make only the rows in view
 
     property <length> pad: 8px;
     property <length> track-h: root.height - 2 * root.pad;

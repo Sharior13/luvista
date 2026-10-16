@@ -1,6 +1,7 @@
 ﻿#include "UIbridge.h"
 #include "uiConvert.h"
 #include "../core/osServices.h"
+#include <algorithm>
 #include <cstdlib>
 
 using UiConvert::toSlint;
@@ -40,12 +41,14 @@ void UiBridge::connectSongPages()
 
         if (page == RECORDINGS) {
             recordingSearch = toStd(text);
+            clearTicks();
             refreshRecordings();
         }
         else if (page >= 0) {
             library.setSearch(pageOf((PageId)page), toStd(text));
             if (page == ALL_SONGS)
                 state().set_search_text("");            // the page's own search replaced the top bar one
+            clearTicks();                               // the rows are different ones now
             refreshPage((PageId)page);
         }
         });
@@ -55,10 +58,12 @@ void UiBridge::connectSongPages()
 
         if (page == RECORDINGS) {
             recordingSort = index;
+            clearTicks();
             refreshRecordings();
         }
         else if (page >= 0) {
             library.setSort(pageOf((PageId)page), index);
+            clearTicks();
             refreshPage((PageId)page);
         }
         });
@@ -70,17 +75,61 @@ void UiBridge::connectSongPages()
     state().on_search_submitted([this](slint::SharedString text) { searchEverywhere(toStd(text)); });
 
     state().on_section_changed([this](NavSection section) {
+        endSelecting();                                 // ticks belong to the page they were made on
+
         if (section == NavSection::Home) refreshHome();
         if (section == NavSection::Songs) resetPage(ALL_SONGS);
         if (section == NavSection::Favorites) resetPage(FAVORITES);
         if (section == NavSection::Recordings) { recordings.refresh(); resetPage(RECORDINGS); }
-        if (section == NavSection::Profile) refreshTopArtists();
+        if (section == NavSection::Albums) { albumSearch = ""; albumSort = 0; refreshAlbums(); }
+        if (section == NavSection::Artists) { artistSearch = ""; artistSort = 0; refreshArtists(); }
+        if (section == NavSection::Profile) { refreshTopArtists(); refreshTopSongs(); }
         });
 
-    state().on_artist_clicked([this](slint::SharedString name) {
-        library.setArtist(toStd(name));
-        state().set_artist_name(name);
-        resetPage(ARTIST);
+    state().on_artist_clicked([this](slint::SharedString name) { openArtist(toStd(name)); });
+
+    // the Albums page
+    state().on_album_clicked([this](int index) {
+        if (index >= 0 && index < (int)albumEntries.size())
+            openAlbum(albumEntries[index].name);
+        });
+
+    state().on_albums_search_changed([this](slint::SharedString text) {
+        albumSearch = toStd(text);
+        refreshAlbums();
+        });
+
+    state().on_albums_sort_changed([this](int index) {
+        albumSort = index;
+        refreshAlbums();
+        });
+
+    // the Artists page
+    state().on_artist_tile_clicked([this](int index) {
+        if (index >= 0 && index < (int)artistEntries.size())
+            openArtist(artistEntries[index].name);
+        });
+
+    state().on_artists_search_changed([this](slint::SharedString text) {
+        artistSearch = toStd(text);
+        refreshArtists();
+        });
+
+    state().on_artists_sort_changed([this](int index) {
+        artistSort = index;
+        refreshArtists();
+        });
+
+    // any artist or album name anywhere on the screen
+    ui.global<Nav>().on_open_artist([this](slint::SharedString name) { openArtist(toStd(name)); });
+    ui.global<Nav>().on_open_album([this](slint::SharedString name) { openAlbum(toStd(name)); });
+
+    // the Most Played list of the profile page
+    state().on_top_song_clicked([this](int row) {
+        if (row >= 0 && row < (int)topSongNumbers.size()) {
+            player.playQueue(topSongNumbers, row, "Most played");
+            syncPlayerBar(false);
+        }
         });
 
     // a card of the home page: play that song
@@ -93,16 +142,57 @@ void UiBridge::connectSongPages()
         }
         });
 
-    // only "Recently Added" has a page to go to: All Songs, newest first
+    // "Show all" of a home row: the page of that row
     state().on_show_all([this](slint::SharedString which) {
-        if (toStd(which) == "recently-added")
-            openSongsPage();
-        });
+        std::string name = toStd(which);
+
+        if (name == "recent")
+            openPage(NavSection::Recent, RECENT);
+        else if (name == "most-played")
+            openPage(NavSection::MostPlayed, MOST_PLAYED);
+        else if (name == "recently-added")
+            openPage(NavSection::RecentlyAdded, RECENTLY_ADDED);
+    });
+}
+
+
+void UiBridge::openPage(NavSection section, PageId page)
+{
+    endSelecting();
+    state().set_selected_playlist(-1);
+    state().set_section(section);
+    resetPage(page);
+}
+
+
+// the artist page, from any artist name or a Top Artist tile
+void UiBridge::openArtist(const std::string& name)
+{
+    endSelecting();
+    library.setArtist(name);
+    state().set_artist_name(toSlint(name));
+    state().set_selected_playlist(-1);
+    state().set_section(NavSection::Artist);
+    resetPage(ARTIST);
+}
+
+
+// the album page, from any album name or a tile of the Albums page
+void UiBridge::openAlbum(const std::string& name)
+{
+    endSelecting();
+    library.setAlbum(name);
+    state().set_album_name(toSlint(name));
+    state().set_album_subtitle(toSlint(library.albumArtist(name)));
+    state().set_selected_playlist(-1);
+    state().set_section(NavSection::Album);
+    resetPage(ALBUM);
 }
 
 
 void UiBridge::openSongsPage()
 {
+    endSelecting();
     state().set_selected_playlist(-1);
     state().set_section(NavSection::Songs);
     resetPage(ALL_SONGS);
@@ -112,6 +202,8 @@ void UiBridge::openSongsPage()
 // A page was opened: its search and sort start fresh
 void UiBridge::resetPage(PageId page)
 {
+    endSelecting();
+
     if (page == RECORDINGS) {
         recordingSearch = "";
         recordingSort = 0;
@@ -128,7 +220,21 @@ void UiBridge::resetPage(PageId page)
 }
 
 
-// the Library decides which songs; this turns them into rows
+// the first picture among the first few songs of a list (the banner of an artist or album page)
+slint::Image UiBridge::firstArt(const std::vector<int>& numbers)
+{
+    for (size_t i = 0; i < numbers.size() && i < 8; i++) {
+        slint::Image art = images.cover(numbers[i]);
+
+        if (art.size().width > 0)
+            return art;
+    }
+
+    return slint::Image();
+}
+
+
+// the Library decides which songs; this turns them into rows. The rows are only made when they are looked at.
 void UiBridge::refreshPage(PageId page)
 {
     if (page == RECORDINGS) {
@@ -137,36 +243,133 @@ void UiBridge::refreshPage(PageId page)
     }
 
     PageResult result = library.build(pageOf(page));
-    std::vector<char> favorites = library.favoriteFlags();
-    std::vector<SongInfo> rows;
 
     shown[page] = result.rows;
+    keepSelection(page, (int)result.rows.size());
 
-    for (int n : result.rows)
-        rows.push_back(infoOf(n, favorites));
+    auto numbers = std::make_shared<std::vector<int>>(result.rows);
+    auto favorites = std::make_shared<std::vector<char>>(library.favoriteFlags());
 
-    auto model = std::make_shared<slint::VectorModel<SongInfo>>(rows);
+    auto model = std::make_shared<LazyModel<SongInfo>>((int)numbers->size(), [this, page, numbers, favorites](int row) {
+        SongInfo info = infoOf((*numbers)[row], *favorites);
+        info.selected = selectionPage == (int)page && selection.contains(row);
+        return info;
+        });
+
+    models[page] = model;
     float seconds = (float)result.seconds;
 
-    if (page == ALL_SONGS) {
+    switch (page) {
+    case ALL_SONGS:
         state().set_songs(model);
         state().set_songs_seconds(seconds);
-        state().set_songs_count(library.size());
-    }
-    else if (page == FAVORITES) {
+        break;
+    case FAVORITES:
         state().set_favorites(model);
         state().set_favorites_seconds(seconds);
         state().set_favorites_count(result.sourceCount);
-    }
-    else if (page == PLAYLIST) {
+        break;
+    case PLAYLIST:
         state().set_playlist_songs(model);
         state().set_playlist_seconds(seconds);
-    }
-    else {
+        break;
+    case ARTIST:
         state().set_artist_songs(model);
         state().set_artist_seconds(seconds);
-        state().set_artist_art(rows.empty() ? slint::Image() : rows[0].art);
+        state().set_artist_art(firstArt(result.rows));
+        break;
+    case ALBUM:
+        state().set_album_songs(model);
+        state().set_album_seconds(seconds);
+        state().set_album_art(firstArt(result.rows));
+        break;
+    case RECENT:
+        state().set_recent_songs(model);
+        state().set_recent_seconds(seconds);
+        break;
+    case MOST_PLAYED:
+        state().set_most_played_songs(model);
+        state().set_most_played_seconds(seconds);
+        break;
+    case RECENTLY_ADDED:
+        state().set_recently_added_songs(model);
+        state().set_recently_added_seconds(seconds);
+        break;
+    default:
+        break;
     }
+}
+
+
+// the Albums page: one tile per album, made when it scrolls into view
+void UiBridge::refreshAlbums()
+{
+    albumEntries = library.albums(albumSearch, albumSort);
+
+    auto entries = std::make_shared<std::vector<AlbumEntry>>(albumEntries);
+
+    auto model = std::make_shared<LazyModel<AlbumInfo>>((int)entries->size(), [this, entries](int row) {
+        const AlbumEntry& entry = (*entries)[row];
+        AlbumInfo tile;
+
+        tile.name = toSlint(entry.name);
+        tile.artist = toSlint(entry.artist);
+        tile.songs = entry.songs;
+        tile.art = firstArt(library.songsOfAlbum(entry.name));
+        return tile;
+        });
+
+    state().set_albums(model);
+}
+
+
+// the Artists page: one tile per artist, made when it scrolls into view
+void UiBridge::refreshArtists()
+{
+    artistEntries = library.artists(artistSearch, artistSort);
+
+    auto entries = std::make_shared<std::vector<ArtistEntry>>(artistEntries);
+
+    auto model = std::make_shared<LazyModel<ArtistInfo>>((int)entries->size(), [this, entries](int row) {
+        ArtistInfo tile;
+
+        tile.name = toSlint((*entries)[row].name);
+        tile.art = firstArt(library.songsOfArtist((*entries)[row].name));
+        return tile;
+        });
+
+    state().set_artists(model);
+}
+
+
+// Settings > Removed songs
+void UiBridge::refreshRemoved()
+{
+    std::vector<RemovedInfo> rows;
+
+    for (const RemovedSong& r : tracks.removedSongs()) {
+        RemovedInfo info;
+        info.title = toSlint(r.title);
+        info.artist = toSlint(r.artist);
+        rows.push_back(info);
+    }
+
+    state().set_removed_songs(std::make_shared<slint::VectorModel<RemovedInfo>>(rows));
+}
+
+
+// the Most Played list of the profile page
+void UiBridge::refreshTopSongs()
+{
+    topSongNumbers = library.mostPlayed(TOP_SONGS);
+
+    std::vector<char> favorites = library.favoriteFlags();
+    std::vector<SongInfo> rows;
+
+    for (int n : topSongNumbers)
+        rows.push_back(infoOf(n, favorites));
+
+    state().set_top_songs(std::make_shared<slint::VectorModel<SongInfo>>(rows));
 }
 
 
@@ -292,6 +495,11 @@ void UiBridge::songMenuAction(PageId page, int row, const std::string& action)
 
 void UiBridge::deleteRow(PageId page, int row)
 {
+    if (row == -1) {                                    // the window was opened from a selection
+        deleteSelection(page);
+        return;
+    }
+
     if (row < 0 || row >= (int)shown[page].size())
         return;
 
@@ -376,7 +584,7 @@ void UiBridge::refreshFolders()
 }
 
 
-// "Add folder": the user picks one, it joins the list and its songs join the library
+// "Add folder": the user picks one, it joins the list and its songs join the library (found on another thread)
 void UiBridge::addFolder()
 {
     std::string folder = Os::chooseFolder();
@@ -385,9 +593,13 @@ void UiBridge::addFolder()
         return;
 
     std::string why;
+    bool added = folders.add(folder, why);
 
-    state().set_folder_error(folders.add(folder, why) ? "" : toSlint(why));
-    reloadLibrary();
+    state().set_folder_error(added ? "" : toSlint(why));
+    refreshStorage();
+
+    if (added)
+        scanFolder(folder);                             // on another thread: the window stays usable
 }
 
 
@@ -397,5 +609,333 @@ void UiBridge::removeFolder(int row)
     std::string why;
 
     state().set_folder_error(folders.remove(row, why) ? "" : toSlint(why));
+    player.libraryChanged();
     reloadLibrary();
+}
+
+
+// ---- selecting several songs ---------------------------------------------------------------------------
+// The rules (what a click ticks) are in core/selection. Here the ticks are shown on the rows and an action
+// from the selection menu is turned into calls on the player, one for every ticked song.
+
+void UiBridge::connectSelection()
+{
+    // the select button: boxes on or off. Off also forgets the ticks
+    state().on_select_mode_toggled([this](bool on) {
+        if (on) {
+            selecting = true;
+            syncSelection();
+        }
+        else {
+            endSelecting();
+        }
+        });
+
+    // a click on a row while selecting (or ctrl / shift click at any time)
+    state().on_row_selected([this](slint::SharedString list, int row, bool ctrl, bool shift) {
+        int page = pageIdOf(list);
+
+        if (page < 0 || row < 0 || row >= (int)shown[page].size())
+            return;
+
+        if (selectionPage != page || selection.rows() != (int)shown[page].size()) {
+            selection.reset((int)shown[page].size());
+            selectionPage = page;
+        }
+
+        for (int changed : selection.click(row, ctrl, shift)) {
+            if (models[page])
+                models[page]->refreshRow(changed);
+        }
+
+        selecting = true;
+        syncSelection();
+        });
+
+    state().on_select_all([this](slint::SharedString list) {
+        int page = pageIdOf(list);
+
+        if (page < 0)
+            return;
+
+        if (selectionPage != page || selection.rows() != (int)shown[page].size()) {
+            selection.reset((int)shown[page].size());
+            selectionPage = page;
+        }
+
+        selection.selectAll();
+
+        if (models[page])
+            models[page]->refreshAll();
+
+        selecting = true;
+        syncSelection();
+        });
+
+    state().on_selection_action([this](slint::SharedString list, slint::SharedString action) {
+        int page = pageIdOf(list);
+
+        if (page >= 0)
+            selectionAction((PageId)page, toStd(action));
+        });
+}
+
+
+void UiBridge::syncSelection()
+{
+    state().set_select_mode(selecting);
+    state().set_selected_count(selection.count());
+}
+
+
+// the ticks are gone and so are the boxes
+void UiBridge::endSelecting()
+{
+    clearTicks();
+    selecting = false;
+    syncSelection();
+}
+
+
+// nothing is ticked any more (the boxes stay while selecting)
+void UiBridge::clearTicks()
+{
+    if (selectionPage >= 0 && selectionPage < PAGE_COUNT && models[selectionPage]) {
+        for (int row : selection.picked())
+            models[selectionPage]->refreshRow(row);
+    }
+
+    selection.clear();
+    syncSelection();
+}
+
+
+// A page was made again. The ticks stay when it is the same page with the same number of rows (a song was added to the
+// queue, say), otherwise the rows are not the ones that were ticked and the ticks go.
+void UiBridge::keepSelection(PageId page, int rows)
+{
+    if (selectionPage == (int)page && selection.rows() == rows)
+        return;
+
+    selection.reset(rows);
+    selectionPage = page;
+    syncSelection();
+}
+
+
+void UiBridge::selectionAction(PageId page, const std::string& action)
+{
+    if (selectionPage != (int)page || selection.count() == 0)
+        return;
+
+    std::vector<int> rows = selection.picked();
+    std::vector<int> numbers;                           // song numbers, or recording rows on the Recordings page
+
+    for (int row : rows) {
+        if (row >= 0 && row < (int)shown[page].size())
+            numbers.push_back(shown[page][row]);
+    }
+
+    if (numbers.empty())
+        return;
+
+    if (page == RECORDINGS) {
+        if (action == "play") {
+            player.playFilePath(recordings.path(numbers[0]), recordings.title(numbers[0]));
+            syncPlayerBar(false);
+        }
+        else if (action == "delete") {
+            state().set_pending_list(toSlint(listNameOf(page)));
+            state().set_pending_row(-1);
+            state().set_pending_count((int)numbers.size());
+            state().set_pending_title(toSlint(UiConvert::countOf((long long)numbers.size(), "recording")));
+            state().set_dialog(DialogKind::DeleteSong);
+        }
+        return;
+    }
+
+    if (action == "play") {
+        player.playQueue(numbers, 0, library.queueName(pageOf(page)));
+        syncPlayerBar(false);
+        refreshQueue();
+    }
+    else if (action == "queue-add" || action == "queue-remove") {
+        for (int n : numbers) {
+            if (action == "queue-add")
+                player.addToQueue(n);
+            else
+                player.removeFromQueue(n);
+        }
+
+        refreshAll();                                   // the rows know if they are queued
+        refreshQueue();
+    }
+    else if (action == "favorite" || action == "unfavorite") {
+        for (int n : numbers) {
+            if (player.isFavoriteSong(n) != (action == "favorite"))
+                player.toggleFavoriteSong(n);
+        }
+
+        refreshAll();
+        refreshHeartAndTick();
+    }
+    else if (action == "add-playlist") {
+        pickWindow.openMany(numbers);
+        state().set_pending_title(toSlint(UiConvert::countOf((long long)numbers.size(), "song")));
+        refreshPickChoices();
+        state().set_dialog(DialogKind::PickPlaylist);
+    }
+    else if (action == "remove-from-playlist") {
+        if (openPlaylist < 0 || openPlaylist >= (int)playlistNames.size())
+            return;
+
+        std::string name = playlistNames[openPlaylist];
+        std::vector<int> inPlaylist;
+
+        for (int n : numbers) {
+            int row = player.playlistRowOf(name, n);
+
+            if (row != 0)
+                inPlaylist.push_back(row);
+        }
+
+        std::sort(inPlaylist.rbegin(), inPlaylist.rend());      // the last row first, so the rows before it stay where they are
+
+        for (int row : inPlaylist)
+            player.removeFromPlaylistRow(name, row);
+
+        playlistChanged(name);
+    }
+    else if (action == "delete") {
+        state().set_pending_list(toSlint(listNameOf(page)));
+        state().set_pending_row(-1);
+        state().set_pending_count((int)numbers.size());
+        state().set_pending_title(toSlint(UiConvert::countOf((long long)numbers.size(), "song")));
+        state().set_dialog(DialogKind::DeleteSong);
+    }
+}
+
+
+// "Remove from library" / "Delete recordings" was confirmed for the ticked rows
+void UiBridge::deleteSelection(PageId page)
+{
+    if (selectionPage != (int)page)
+        return;
+
+    std::vector<int> numbers;
+
+    for (int row : selection.picked()) {
+        if (row >= 0 && row < (int)shown[page].size())
+            numbers.push_back(shown[page][row]);
+    }
+
+    // the biggest number first: taking one out moves every song behind it up, the ones in front stay put
+    std::sort(numbers.rbegin(), numbers.rend());
+    endSelecting();
+
+    if (page == RECORDINGS) {
+        for (int row : numbers)
+            recordings.remove(row);                     // a recording has no other copy, so the file goes
+
+        refreshRecordings();
+        refreshCounts();
+        refreshStorage();
+        return;
+    }
+
+    for (int n : numbers)
+        player.removeSongFromLibrary(n);
+
+    reloadLibrary();
+}
+
+
+// ---- looking for songs in the background -------------------------------------------------------------------
+// Walking a music folder and reading tags takes a while on a big library. It runs on another thread and the
+// result is applied here, on the screen's thread, when it is ready.
+
+void UiBridge::scanFolder(const std::string& folder)
+{
+    if (folder.empty())
+        return;
+
+    if (working) {                                      // one at a time: this one waits its turn
+        pendingFolders.push_back(folder);
+        return;
+    }
+
+    working = true;
+    state().set_scanning(true);
+
+    if (worker.joinable())
+        worker.join();
+
+    TrackList::Snapshot known = tracks.snapshot();
+
+    worker = std::thread([this, folder, known]() {
+        ScanResult result = TrackList::discover(folder, known, &stopping);
+
+        slint::invoke_from_event_loop([this, result = std::move(result)]() {
+            finishScan(result);
+            });
+        });
+}
+
+
+void UiBridge::finishScan(const ScanResult& result)
+{
+    int changed = tracks.apply(result);
+
+    if (changed > 0) {
+        player.libraryChanged();                        // numbers moved: the playing song and the queue find themselves again
+        reloadLibrary();
+    }
+    else {
+        refreshStorage();
+    }
+
+    startRepair();
+}
+
+
+// New songs have no length yet, and songs from an older index may have names the new rules read better
+void UiBridge::startRepair()
+{
+    std::vector<Song> work = tracks.needsWork();
+
+    if (work.empty()) {
+        workDone();
+        return;
+    }
+
+    if (worker.joinable())
+        worker.join();
+
+    TrackList::Snapshot known = tracks.snapshot();
+
+    worker = std::thread([this, work = std::move(work), known]() {
+        std::vector<SongFix> fixes = TrackList::repair(work, known, &stopping);
+
+        slint::invoke_from_event_loop([this, fixes = std::move(fixes)]() {
+            if (!fixes.empty()) {
+                tracks.applyFixes(fixes);
+                reloadLibrary();
+            }
+
+            workDone();
+            });
+        });
+}
+
+
+void UiBridge::workDone()
+{
+    working = false;
+    state().set_scanning(false);
+
+    if (!pendingFolders.empty()) {
+        std::string next = pendingFolders.front();
+        pendingFolders.erase(pendingFolders.begin());
+        scanFolder(next);
+    }
 }

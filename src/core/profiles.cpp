@@ -272,16 +272,22 @@ bool emailLooksOk(const std::string& email)
 }   // namespace
 
 
+// Every profile gets a card. A profile that did not want to be remembered still shows up, but its card asks for the password.
 std::vector<std::string> Profiles::shown() const
 {
-    std::vector<std::string> names;
+    return list();
+}
 
-    for (const std::string& name : list()) {
-        if (readAccount(name).remember)
-            names.push_back(name);
-    }
 
-    return names;
+bool Profiles::needsPassword(const std::string& name) const
+{
+    std::string actual = find(name);
+
+    if (actual == "")
+        return false;
+
+    Account account = readAccount(actual);
+    return !account.remember && !account.password.empty();
 }
 
 

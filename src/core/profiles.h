@@ -13,7 +13,8 @@ public:
     bool exists(const std::string& name) const;     // big/small letters do not matter
     std::string find(const std::string& name) const;   // the real spelling of a name, "" if there is no such profile
     bool create(const std::string& name);           // false if the name is empty, bad or already used
-    std::vector<std::string> shown() const;         // the profiles that get a card on the login screen ("Remember me" was on)
+    std::vector<std::string> shown() const;         // the profiles that get a card on the login screen: all of them
+    bool needsPassword(const std::string& name) const;   // "Remember me" was off and there is a password: the card asks for it
 
     // Accounts. A profile made with create(name) has no email and no password.
     bool createAccount(const std::string& name, const std::string& email, const std::string& password,

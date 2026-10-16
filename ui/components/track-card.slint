@@ -1,4 +1,6 @@
 ﻿import { Theme } from "../theme.slint";
+import { ClickText } from "click-text.slint";
+import { Nav } from "../navigation.slint";
 
 export struct TrackInfo {
     title: string,
@@ -57,16 +59,20 @@ export component TrackCard inherits Rectangle {
         overflow: elide;
     }
 
-    //song artist
-    Text {
+    //song artist, click it to open the artist
+    HorizontalLayout {
         x: 10px;
         y: art.y + art.height + 32px;
         width: parent.width - 20px;
         height: 20px;
-        text: root.track.subtitle;
-        color: Theme.text-muted;
-        font-size: 13px;
-        font-weight: 700;
-        overflow: elide;
+        alignment: start;
+
+        ClickText {
+            text: root.track.subtitle;
+            tint: Theme.text-muted;
+            font-size: 13px;
+            enabled: root.track.subtitle != "" && root.track.subtitle != "Unknown artist";
+            clicked => { Nav.open-artist(root.track.subtitle); }
+        }
     }
 }

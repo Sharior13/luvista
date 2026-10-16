@@ -52,13 +52,6 @@ void MusicFolders::save() const
 }
 
 
-void MusicFolders::rescanAll()
-{
-    for (const std::string& folder : all())
-        player.openFolder(folder);              // a folder that is not there is skipped, its songs stay in the library
-}
-
-
 int MusicFolders::count() const
 {
     return (int)all().size();
@@ -97,7 +90,7 @@ bool MusicFolders::add(const std::string& folder, std::string& error)
 
     added.push_back(folder);
     save();
-    player.openFolder(folder, true);            // picked on purpose: songs removed from it earlier come back
+    player.bringBackRemovedInside(folder);      // picked on purpose: songs removed from it earlier may be found again
     error = "";
     return true;
 }

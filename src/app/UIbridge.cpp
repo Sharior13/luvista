@@ -1,5 +1,7 @@
 ﻿#include "UIbridge.h"
 #include "uiConvert.h"
+#include "../audio/CoverArt.h"
+#include "../core/appPaths.h"
 #include <chrono>
 #include <cstdlib>
 #include <ctime>
@@ -15,13 +17,35 @@ UiBridge::UiBridge(AppWindow& window, PlayerController& p, TrackList& t, Library
 }
 
 
+// a scan that is still running is told to stop, so closing the program does not wait for it
+UiBridge::~UiBridge()
+{
+    stopping = true;
+
+    if (worker.joinable())
+        worker.join();
+}
+
+
 Page UiBridge::pageOf(PageId id)
 {
+    // the first PageIds are the Library's pages, in the same order
+    return id < RECORDINGS ? (Page)(int)id : Page::AllSongs;
+}
+
+
+std::string UiBridge::listNameOf(PageId id)
+{
     switch (id) {
-    case FAVORITES: return Page::Favorites;
-    case PLAYLIST: return Page::Playlist;
-    case ARTIST: return Page::Artist;
-    default: return Page::AllSongs;
+    case FAVORITES: return "favorites";
+    case PLAYLIST: return "playlist";
+    case ARTIST: return "artist";
+    case ALBUM: return "album";
+    case RECENT: return "recent";
+    case MOST_PLAYED: return "most-played";
+    case RECENTLY_ADDED: return "recently-added";
+    case RECORDINGS: return "recordings";
+    default: return "songs";
     }
 }
 
@@ -35,23 +59,31 @@ int UiBridge::pageIdOf(const slint::SharedString& listName)
     if (n == "favorites") return FAVORITES;
     if (n == "playlist") return PLAYLIST;
     if (n == "artist") return ARTIST;
+    if (n == "album") return ALBUM;
+    if (n == "recent") return RECENT;
+    if (n == "most-played") return MOST_PLAYED;
+    if (n == "recently-added") return RECENTLY_ADDED;
     if (n == "recordings") return RECORDINGS;
     return -1;
 }
 
 
 // Fills the screen, hooks up the buttons and starts the clock.
+// Only what is on screen first (the home page, the player bar) is made here. The song lists are made when their page
+// opens, their rows when they scroll into view, and the music folder is looked through after the window is up.
 void UiBridge::start()
 {
     std::srand((unsigned)std::time(nullptr));
 
     state().set_volume(player.volume() / 100.0f);
 
+    CoverArt::purgeNumbered();                  // pictures kept under a song number once showed up on the wrong song
     library.reload();
+    albumsTotal = library.albumCount();
+    artistsTotal = library.artistCount();
     recordings.refresh();
     refreshCards();
     refreshPlaylists();
-    state().set_songs_count(library.size());
     refreshAll();
     syncPlayerBar(true);
     showProfile();
@@ -59,11 +91,16 @@ void UiBridge::start()
     connectPlayerBar();
     connectSongPages();
     connectSongMenus();
+    connectSelection();
     connectPlaylists();
     connectRecorder();
     connectSession();
     connectAccount();
     connectSettings();
+
+    state().set_open_last_profile(launch.openLast());
+    refreshRemoved();
+    openLastProfile();
 
     // four times a second: move the seek bar, go to the next song when one ends, move the recorder's meter
     timer.start(slint::TimerMode::Repeated, std::chrono::milliseconds(250), [this] {
@@ -71,17 +108,66 @@ void UiBridge::start()
         syncPlayerBar(false);
         tickRecorder();
         });
+
+    // songs found earlier are already loaded from the index. New files in the music folder are looked for once
+    // the first picture of the window is up, on another thread.
+    slint::Timer::single_shot(std::chrono::milliseconds(300), [this] {
+        for (int row = 0; row < folders.count(); row++)
+            scanFolder(folders.path(row));              // the default folder and the ones the user added, one after the other
+        });
+}
+
+
+int UiBridge::currentPage() const
+{
+    if (state().get_selected_playlist() >= 0)
+        return PLAYLIST;
+
+    switch (state().get_section()) {
+    case NavSection::Songs: return ALL_SONGS;
+    case NavSection::Favorites: return FAVORITES;
+    case NavSection::Recordings: return RECORDINGS;
+    case NavSection::Artist: return ARTIST;
+    case NavSection::Album: return ALBUM;
+    case NavSection::Recent: return RECENT;
+    case NavSection::MostPlayed: return MOST_PLAYED;
+    case NavSection::RecentlyAdded: return RECENTLY_ADDED;
+    default: return -1;
+    }
+}
+
+
+void UiBridge::refreshCounts()
+{
+    state().set_songs_count(library.size());
+    state().set_favorites_count(player.favoriteCount());
+    state().set_recordings_count(recordings.count());
+    state().set_albums_count(albumsTotal);
+    state().set_artists_count(artistsTotal);
 }
 
 
 void UiBridge::refreshAll()
 {
-    for (int page = 0; page < RECORDINGS; page++)
+    refreshCounts();
+
+    int page = currentPage();
+
+    if (page >= 0)
         refreshPage((PageId)page);
 
-    refreshRecordings();
+    if (state().get_section() == NavSection::Albums)
+        refreshAlbums();
+
+    if (state().get_section() == NavSection::Artists)
+        refreshArtists();
+
+    if (state().get_section() == NavSection::Profile) {
+        refreshTopArtists();
+        refreshTopSongs();
+    }
+
     refreshHome();
-    refreshTopArtists();
     refreshStorage();
 }
 
@@ -90,7 +176,9 @@ void UiBridge::refreshAll()
 void UiBridge::reloadLibrary()
 {
     library.reload();
-    state().set_songs_count(library.size());
+    albumsTotal = library.albumCount();
+    artistsTotal = library.artistCount();
+    refreshRemoved();
     refreshAll();
     refreshPlaylists();
     syncPlayerBar(true);

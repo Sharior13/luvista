@@ -6,6 +6,7 @@ import { SongInfo, SongRow } from "song-row.slint";
 import { SongTableHeader } from "song-table-header.slint";
 import { SortMenu } from "sort-menu.slint";
 import { MenuPanel, MenuRow, MenuDivider } from "menu.slint";
+import { AppState } from "../state.slint";
 
 //shared layout of the Songs, Favorites, Recordings and Playlist pages
 export component LibraryPage inherits Rectangle {
@@ -29,7 +30,10 @@ export component LibraryPage inherits Rectangle {
     in property <string> action-label;            //e.g. "Start Recording", empty = no button
     in property <image> action-icon;
     in property <[string]> sort-options: ["Recently added", "Title", "Artist", "Length"];
-    in-out property <int> sort-index: 0;
+    in-out property <int> sort-index: 1;              //pages open sorted by title
+    in property <bool> show-album-column: true;   //false for recordings: a voice memo has no album
+    in property <bool> select-enabled: true;      //the "select songs" button
+    in property <bool> links: true;               //artist and album names in the rows are clickable
     in-out property <string> search-text;
 
     //list
@@ -57,13 +61,35 @@ export component LibraryPage inherits Rectangle {
     property <bool> compact: root.width < Theme.bp-date;
     property <length> pad: root.compact ? 20px : 36px;
     property <length> art-size: root.compact ? 88px : 112px;
-    property <bool> show-album: root.width >= Theme.bp-album;
+    property <bool> show-album: root.show-album-column && root.width >= Theme.bp-album;
     property <bool> show-date: root.width >= Theme.bp-date;
     property <length> search-w: Math.min(300px, root.width * 0.4);
     property <bool> has-search: root.show-search && root.width >= 480px;   //only a really tiny page drops the search box
     property <bool> searching: root.search-text != "";
 
-    PageScroll {
+    //Only the rows that are in view (and a few around them) are made, not one per song. A library of thousands of
+    //songs would otherwise make thousands of rows, and their pictures, every time the page opens.
+    property <length> row-pitch: Theme.row-height + 2px;
+    property <length> list-top: table.y + list-area.y;                  //where the first row starts inside the scrolled content
+    property <int> window-rows: Math.min(root.songs.length, Math.ceil(root.height / root.row-pitch) + 8);
+    property <int> first-row: Math.min(
+        Math.max(0, root.songs.length - root.window-rows),
+        Math.max(0, Math.floor((scroller.scroll-y - root.list-top) / root.row-pitch) - 3));
+
+    function row-clicked(i: int, ctrl: bool, shift: bool) {
+        if (AppState.select-mode || ctrl || shift) {
+            AppState.row-selected(root.list-id, i, ctrl, shift);
+        } else {
+            root.song-clicked(i);
+        }
+    }
+
+    //entries of the selection menu
+    function selection-act(id: string) {
+        AppState.selection-action(root.list-id, id);
+    }
+
+    scroller := PageScroll {
         VerticalLayout {
             spacing: 0px;
 
@@ -360,7 +386,30 @@ export component LibraryPage inherits Rectangle {
                     }
                 }
 
-                SortMenu {
+                //"select songs": tick boxes appear and the selection bar below opens the menu for all ticked songs
+                if root.select-enabled && root.songs.length > 0 : Rectangle {
+                    x: sort-menu.x - 48px;
+                    y: (parent.height - self.height) / 2;
+                    width: 44px;
+                    height: 44px;
+                    border-radius: self.width / 2;
+                    background: AppState.select-mode ? Theme.nav-hover : (select-touch.has-hover ? Theme.nav-hover : transparent);
+
+                    select-touch := TouchArea {
+                        mouse-cursor: MouseCursor.pointer;
+                        clicked => { AppState.select-mode-toggled(!AppState.select-mode); }
+                    }
+                    Image {
+                        source: @image-url("../icons/select.svg");
+                        colorize: AppState.select-mode ? Theme.pink : (select-touch.has-hover ? Theme.text-primary : Theme.control-muted);
+                        width: 26px;
+                        height: 26px;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                    }
+                }
+
+                sort-menu := SortMenu {
                     x: parent.width - self.width - root.pad;
                     y: (parent.height - self.height) / 2;
                     options: root.sort-options;
@@ -369,8 +418,153 @@ export component LibraryPage inherits Rectangle {
                 }
             }
 
+            //selection bar: how many songs are ticked and the menu that works on all of them
+            if AppState.select-mode : Rectangle {
+                height: 52px;
+                background: Theme.header-band;
+
+                Text {
+                    x: root.pad;
+                    width: max(0px, parent.width - 2 * root.pad - 330px);
+                    height: parent.height;
+                    text: AppState.selected-count == 0 ? "Tick the songs you want" : "\{AppState.selected-count} selected";
+                    color: Theme.text-primary;
+                    font-size: 15px;
+                    font-weight: 800;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+
+                HorizontalLayout {
+                    x: parent.width - self.width - root.pad;
+                    width: min(330px, parent.width - 2 * root.pad);
+                    height: parent.height;
+                    alignment: end;
+                    spacing: 8px;
+                    padding-top: 8px;
+                    padding-bottom: 8px;
+
+                    //select every row of the page
+                    Rectangle {
+                        width: 84px;
+                        border-radius: 10px;
+                        background: all-touch.has-hover ? Theme.nav-hover : transparent;
+                        all-touch := TouchArea {
+                            mouse-cursor: MouseCursor.pointer;
+                            clicked => { AppState.select-all(root.list-id); }
+                        }
+                        Text {
+                            text: "Select all";
+                            color: Theme.text-primary;
+                            font-size: 14px;
+                            font-weight: 700;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    //the menu for every ticked song
+                    Rectangle {
+                        width: 100px;
+                        border-radius: 10px;
+                        background: AppState.selected-count == 0 ? #ffffff10 : Theme.action-gradient;
+                        opacity: AppState.selected-count == 0 ? 0.5 : 1.0;
+
+                        act-touch := TouchArea {
+                            enabled: AppState.selected-count > 0;
+                            mouse-cursor: AppState.selected-count > 0 ? MouseCursor.pointer : MouseCursor.default;
+                            clicked => { selection-popup.show(); }
+                        }
+                        Text {
+                            text: "Actions";
+                            color: Theme.text-primary;
+                            font-size: 14px;
+                            font-weight: 800;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        selection-popup := PopupWindow {
+                            x: parent.width - self.width;
+                            y: parent.height + 4px;
+                            width: 250px;
+                            height: root.list-id == "recordings"
+                                ? 2 * Theme.menu-row-height + 9px + 12px
+                                : (root.list-id == "playlist" ? 8 : 7) * Theme.menu-row-height + 3 * 9px + 12px;
+                            close-policy: PopupClosePolicy.close-on-click-outside;
+
+                            MenuPanel {
+                                MenuRow {
+                                    icon: @image-url("../icons/play.svg");
+                                    label: "Play";
+                                    clicked => { root.selection-act("play"); selection-popup.close(); }
+                                }
+                                MenuDivider { }
+                                if root.list-id != "recordings" : MenuRow {
+                                    icon: @image-url("../icons/queue-add.svg");
+                                    label: "Add to queue";
+                                    clicked => { root.selection-act("queue-add"); selection-popup.close(); }
+                                }
+                                if root.list-id != "recordings" : MenuRow {
+                                    icon: @image-url("../icons/queue-remove.svg");
+                                    label: "Remove from queue";
+                                    clicked => { root.selection-act("queue-remove"); selection-popup.close(); }
+                                }
+                                if root.list-id != "recordings" : MenuDivider { }
+                                if root.list-id != "recordings" : MenuRow {
+                                    icon: @image-url("../icons/playlist-add.svg");
+                                    label: "Add to playlist";
+                                    clicked => { root.selection-act("add-playlist"); selection-popup.close(); }
+                                }
+                                if root.list-id != "recordings" : MenuRow {
+                                    icon: @image-url("../icons/heart.svg");
+                                    label: "Add to Favorites";
+                                    clicked => { root.selection-act("favorite"); selection-popup.close(); }
+                                }
+                                if root.list-id != "recordings" : MenuRow {
+                                    icon: @image-url("../icons/heart-outline.svg");
+                                    label: "Remove from Favorites";
+                                    clicked => { root.selection-act("unfavorite"); selection-popup.close(); }
+                                }
+                                if root.list-id != "recordings" : MenuDivider { }
+                                if root.list-id == "playlist" : MenuRow {
+                                    icon: @image-url("../icons/close.svg");
+                                    label: "Remove from this playlist";
+                                    clicked => { root.selection-act("remove-from-playlist"); selection-popup.close(); }
+                                }
+                                MenuRow {
+                                    icon: @image-url("../icons/trash.svg");
+                                    label: root.list-id == "recordings" ? "Delete recordings" : "Remove from library";
+                                    danger: true;
+                                    clicked => { root.selection-act("delete"); selection-popup.close(); }
+                                }
+                            }
+                        }
+                    }
+
+                    //leave selecting
+                    Rectangle {
+                        width: 64px;
+                        border-radius: 10px;
+                        background: done-touch.has-hover ? Theme.nav-hover : transparent;
+                        done-touch := TouchArea {
+                            mouse-cursor: MouseCursor.pointer;
+                            clicked => { AppState.select-mode-toggled(false); }
+                        }
+                        Text {
+                            text: "Done";
+                            color: Theme.text-primary;
+                            font-size: 14px;
+                            font-weight: 700;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+
             //table header, rows and the empty state
-            VerticalLayout {
+            table := VerticalLayout {
                 padding-left: root.pad;
                 padding-right: root.pad;
                 spacing: 2px;
@@ -422,16 +616,26 @@ export component LibraryPage inherits Rectangle {
                     }
                 }
 
-                for s[i] in root.songs : SongRow {
-                    index: i;
-                    song: s;
-                    icon: root.row-icon;
-                    show-icon: root.row-show-icon;
-                    show-album: root.show-album;
-                    show-date: root.show-date;
-                    context: root.list-id;
-                    clicked => { root.song-clicked(i); }
-                    action(id) => { root.song-action(i, id); }
+                //the rows. This box is as tall as ALL the rows would be, but only the ones in view exist
+                list-area := Rectangle {
+                    height: root.songs.length * root.row-pitch;
+
+                    for k in root.window-rows : SongRow {
+                        property <int> idx: root.first-row + k;
+                        y: self.idx * root.row-pitch;
+                        width: parent.width;
+                        index: self.idx;
+                        song: root.songs[self.idx];
+                        icon: root.row-icon;
+                        show-icon: root.row-show-icon;
+                        show-album: root.show-album;
+                        show-date: root.show-date;
+                        select-mode: AppState.select-mode;
+                        links: root.links;
+                        context: root.list-id;
+                        clicked(ctrl, shift) => { root.row-clicked(self.idx, ctrl, shift); }
+                        action(id) => { root.song-action(self.idx, id); }
+                    }
                 }
             }
 

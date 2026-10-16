@@ -11,7 +11,7 @@ export component ArtistTile inherits Rectangle {
     callback clicked();
 
     width: 118px;
-    height: 150px;
+    height: self.width + 32px;       //150px at the usual 118px width
     border-radius: 12px;
     background: touch.has-hover ? Theme.nav-hover : transparent;
     animate background { duration: Theme.anim-fast; }
